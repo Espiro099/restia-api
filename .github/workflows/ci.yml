@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  contrato:
+    name: Pruebas del contrato
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r tests/requirements.txt
+      - run: python -m pytest -q tests/contract
+      - name: El catálogo de errores de PHP coincide con el contrato
+        run: |
+          python tools/gen_matrices.py > /dev/null
+          python tools/gen_error_catalog.py
+          git diff --exit-code -- docs tests/contract config/errors.php
+
+  backend:
+    name: Pruebas del backend
+    runs-on: ubuntu-latest
+    env:
+      MONGODB_URI: mongodb://127.0.0.1:27018/?replicaSet=rs-restia
+    steps:
+      - uses: actions/checkout@v4
+      - name: Arranca MongoDB
+        # 8.3, igual que en local. MongoDB 8.x se niega a arrancar con Linux 6.19 o posterior
+        # (SERVER-121912). GLIBC_TUNABLES es un rodeo no oficial, solo para pruebas.
+        run: >-
+          docker run -d --name mongo --network host -e GLIBC_TUNABLES=glibc.pthread.rseq=1
+          mongo:8.3 --replSet rs-restia --port 27018 --bind_ip 127.0.0.1
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.4"
+          extensions: mongodb
+          coverage: none
+      - run: composer install --no-interaction --no-progress --prefer-dist
+      - run: cp .env.example .env && php artisan key:generate
+      - name: Inicia el replica set con el mismo comando que en local
+        run: |
+          for i in $(seq 1 10); do
+            php artisan restia:replica-init --port=27018 && exit 0
+            sleep 3
+          done
+          docker logs mongo | tail -50
+          exit 1
+      - run: php artisan migrate --force
+      - run: vendor/bin/pint --test
+      - run: php artisan test
