@@ -82,13 +82,14 @@ En `config/database.php`, dentro de `connections`:
 
 D-07 fija que las comandas son tres colecciones: `orders.items[]` no es fuente operativa.
 
-### Cinco errores fáciles de cometer
+### Seis errores fáciles de cometer
 
 1. **Una referencia buscada como string no encuentra nada, y no da error.** Solo `_id` se convierte solo. Declara el cast `ObjectId` y consulta con `new ObjectId(...)`.
 2. **`transaction()` sin intentos:** con el valor por omisión, en la prueba 149 de 150 perdedores recibieron un conflicto genérico en lugar del duplicado.
 3. **`status[$ne]=x` en un filtro:** sin validar tipo, Laravel lo pasa como operador. En la prueba devolvió todos los usuarios. Valida siempre `string`.
 4. **Índice único sobre un campo opcional:** los documentos sin el campo chocan entre sí como `null`. Usa un índice parcial.
 5. **Leer y luego insertar en una transacción no evita el duplicado:** sin `epoch`, hubo 40 dobles apartados de 40 (sección 7).
+6. **`getCollection()` dentro de una transacción queda fuera de ella:** no lleva la sesión, así que esa escritura no se deshace si la transacción falla. Escribe con modelos o con `DB::table()`. Lo comprueba `tests/Feature/MongoTest.php`.
 
 ## 4. Migraciones e índices
 
