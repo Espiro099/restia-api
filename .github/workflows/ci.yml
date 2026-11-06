@@ -33,7 +33,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Arranca MongoDB
-        run: docker run -d --name mongo --network host mongo:8.0 --replSet rs-restia --port 27018 --bind_ip 127.0.0.1
+        # 8.3, igual que en local. MongoDB 8.0 no arranca con el kernel 6.19 de los runners (SERVER-121912).
+        run: docker run -d --name mongo --network host mongo:8.3 --replSet rs-restia --port 27018 --bind_ip 127.0.0.1
       - uses: shivammathur/setup-php@v2
         with:
           php-version: "8.4"
