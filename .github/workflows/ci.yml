@@ -27,15 +27,17 @@ jobs:
 
   backend:
     name: Pruebas del backend
-    # MongoDB 8.x no arranca con Linux 6.19 o posterior (SERVER-121912), que ya trae ubuntu-latest.
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     env:
       MONGODB_URI: mongodb://127.0.0.1:27018/?replicaSet=rs-restia
     steps:
       - uses: actions/checkout@v4
       - name: Arranca MongoDB
-        # 8.3, igual que en local.
-        run: docker run -d --name mongo --network host mongo:8.3 --replSet rs-restia --port 27018 --bind_ip 127.0.0.1
+        # 8.3, igual que en local. MongoDB 8.x se niega a arrancar con Linux 6.19 o posterior
+        # (SERVER-121912). GLIBC_TUNABLES es un rodeo no oficial, solo para pruebas.
+        run: >-
+          docker run -d --name mongo --network host -e GLIBC_TUNABLES=glibc.pthread.rseq=1
+          mongo:8.3 --replSet rs-restia --port 27018 --bind_ip 127.0.0.1
       - uses: shivammathur/setup-php@v2
         with:
           php-version: "8.4"
