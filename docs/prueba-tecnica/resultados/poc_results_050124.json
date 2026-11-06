@@ -1,0 +1,58 @@
+{
+    "4": {
+        "pass": true,
+        "detail": {
+            "rondas": 30,
+            "procesos": 8,
+            "rondas_con_un_ganador": 30,
+            "rondas_con_mas_de_uno": 0,
+            "intentos": 659,
+            "esperados_sin_reintento": 240,
+            "errores": 0,
+            "mensajes": []
+        }
+    },
+    "5": {
+        "pass": true,
+        "detail": {
+            "control_sin_epoch": {
+                "rondas": 40,
+                "procesos": 6,
+                "dobles_apartados": 40,
+                "reservas": 240,
+                "intentos": 240,
+                "exitos_vistos": 240,
+                "ocupado_visto": 0,
+                "errores": 0,
+                "mensajes": []
+            },
+            "con_epoch": {
+                "rondas": 40,
+                "procesos": 6,
+                "dobles_apartados": 0,
+                "reservas": 40,
+                "intentos": 651,
+                "exitos_vistos": 40,
+                "ocupado_visto": 200,
+                "errores": 0,
+                "mensajes": []
+            }
+        }
+    },
+    "6": {
+        "pass": true,
+        "detail": {
+            "rondas": 30,
+            "activas": 30,
+            "confirmadas": 30,
+            "duplicados": 142,
+            "otros_errores": 8,
+            "bitacora_coincide": true,
+            "reasignar_tras_liberar": true,
+            "duplicado_revierte_todo": true,
+            "mensajes": {
+                "BulkWriteException": "Caused by :: :: Please retry your operation or multi-document transaction."
+            }
+        }
+    }
+}

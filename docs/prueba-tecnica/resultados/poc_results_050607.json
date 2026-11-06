@@ -1,0 +1,129 @@
+{
+    "10": {
+        "pass": true,
+        "detail": {
+            "niveles": [
+                {
+                    "objetivo_ops_seg": 2,
+                    "intentos": 5,
+                    "espera": false,
+                    "ops_seg": 2.2,
+                    "p50_ms": 5.7,
+                    "p95_ms": 18.9,
+                    "p99_ms": 20.6,
+                    "reintentos_por_op": 0,
+                    "agotados": 0,
+                    "pct_agotados": 0
+                },
+                {
+                    "objetivo_ops_seg": 10,
+                    "intentos": 5,
+                    "espera": false,
+                    "ops_seg": 9.5,
+                    "p50_ms": 4.8,
+                    "p95_ms": 18.9,
+                    "p99_ms": 22.1,
+                    "reintentos_por_op": 0.04,
+                    "agotados": 0,
+                    "pct_agotados": 0
+                },
+                {
+                    "objetivo_ops_seg": 50,
+                    "intentos": 5,
+                    "espera": false,
+                    "ops_seg": 44.1,
+                    "p50_ms": 5.1,
+                    "p95_ms": 36.2,
+                    "p99_ms": 52.2,
+                    "reintentos_por_op": 0.43,
+                    "agotados": 3,
+                    "pct_agotados": 0.68
+                },
+                {
+                    "objetivo_ops_seg": 100,
+                    "intentos": 5,
+                    "espera": false,
+                    "ops_seg": 70,
+                    "p50_ms": 8.8,
+                    "p95_ms": 66.2,
+                    "p99_ms": 83.6,
+                    "reintentos_por_op": 1.22,
+                    "agotados": 35,
+                    "pct_agotados": 4.76
+                },
+                {
+                    "objetivo_ops_seg": 200,
+                    "intentos": 5,
+                    "espera": false,
+                    "ops_seg": 81.2,
+                    "p50_ms": 19.8,
+                    "p95_ms": 68.4,
+                    "p99_ms": 84.2,
+                    "reintentos_por_op": 2.24,
+                    "agotados": 151,
+                    "pct_agotados": 15.68
+                },
+                {
+                    "objetivo_ops_seg": 50,
+                    "intentos": 5,
+                    "espera": true,
+                    "ops_seg": 40.6,
+                    "p50_ms": 5.6,
+                    "p95_ms": 100.7,
+                    "p99_ms": 205.6,
+                    "reintentos_por_op": 0.55,
+                    "agotados": 2,
+                    "pct_agotados": 0.49
+                },
+                {
+                    "objetivo_ops_seg": 100,
+                    "intentos": 5,
+                    "espera": true,
+                    "ops_seg": 56.8,
+                    "p50_ms": 20,
+                    "p95_ms": 179.1,
+                    "p99_ms": 299.9,
+                    "reintentos_por_op": 1.06,
+                    "agotados": 17,
+                    "pct_agotados": 2.91
+                },
+                {
+                    "objetivo_ops_seg": 200,
+                    "intentos": 5,
+                    "espera": true,
+                    "ops_seg": 62.2,
+                    "p50_ms": 35,
+                    "p95_ms": 194,
+                    "p99_ms": 314.2,
+                    "reintentos_por_op": 1.55,
+                    "agotados": 55,
+                    "pct_agotados": 8.12
+                },
+                {
+                    "objetivo_ops_seg": 200,
+                    "intentos": 10,
+                    "espera": true,
+                    "ops_seg": 61.1,
+                    "p50_ms": 34.8,
+                    "p95_ms": 331,
+                    "p99_ms": 677.2,
+                    "reintentos_por_op": 1.35,
+                    "agotados": 5,
+                    "pct_agotados": 0.81
+                },
+                {
+                    "objetivo_ops_seg": 400,
+                    "intentos": 10,
+                    "espera": true,
+                    "ops_seg": 63.2,
+                    "p50_ms": 35,
+                    "p95_ms": 503.7,
+                    "p99_ms": 817.6,
+                    "reintentos_por_op": 1.47,
+                    "agotados": 2,
+                    "pct_agotados": 0.32
+                }
+            ]
+        }
+    }
+}

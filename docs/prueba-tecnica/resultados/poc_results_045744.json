@@ -1,0 +1,37 @@
+{
+    "8": {
+        "pass": true,
+        "detail": {
+            "ida_y_vuelta": {
+                "10.50": "10.50",
+                "0.10": "0.10",
+                "0.20": "0.20",
+                "1234567890.1234": "1234567890.1234",
+                "100.00": "100.00"
+            },
+            "suma_0_10_0_20": "0.30",
+            "tipo_guardado": "MongoDB\\BSON\\Decimal128",
+            "eloquent_atributo": "10.50",
+            "eloquent_json": "10.50"
+        }
+    },
+    "9": {
+        "pass": false,
+        "detail": {
+            "sin_validar_operador": [
+                0,
+                null
+            ],
+            "sin_validar_normal": [
+                0,
+                null
+            ],
+            "validado_operador": 0,
+            "validado_normal": [
+                0,
+                null
+            ],
+            "validado_cuerpo_json": 0
+        }
+    }
+}

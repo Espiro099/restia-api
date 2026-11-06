@@ -1,0 +1,16 @@
+{
+    "6": {
+        "pass": true,
+        "detail": {
+            "rondas": 30,
+            "activas": 30,
+            "confirmadas": 30,
+            "duplicados": 150,
+            "otros_errores": 0,
+            "bitacora_coincide": true,
+            "reasignar_tras_liberar": true,
+            "duplicado_revierte_todo": true,
+            "mensajes": []
+        }
+    }
+}

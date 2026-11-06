@@ -1,0 +1,72 @@
+{
+    "7": {
+        "pass": false,
+        "detail": {
+            "niveles": [
+                {
+                    "procesos": 1,
+                    "ops_por_seg": 246.5,
+                    "p50_ms": 4,
+                    "p95_ms": 5.2,
+                    "p99_ms": 5.7,
+                    "reintentos_por_op": 0,
+                    "agotados": 0,
+                    "pct_agotados": 0,
+                    "mensajes": []
+                },
+                {
+                    "procesos": 2,
+                    "ops_por_seg": 254.9,
+                    "p50_ms": 4.2,
+                    "p95_ms": 33.2,
+                    "p99_ms": 65.3,
+                    "reintentos_por_op": 0.26,
+                    "agotados": 6,
+                    "pct_agotados": 0.29,
+                    "mensajes": {
+                        "BulkWriteException": "Caused by :: Write conflict during plan execution and yielding is disabled. :: Please retry your operation or multi-docu"
+                    }
+                },
+                {
+                    "procesos": 4,
+                    "ops_por_seg": 255,
+                    "p50_ms": 4.4,
+                    "p95_ms": 38.3,
+                    "p99_ms": 73.5,
+                    "reintentos_por_op": 0.67,
+                    "agotados": 138,
+                    "pct_agotados": 6.34,
+                    "mensajes": {
+                        "BulkWriteException": "Caused by :: Write conflict during plan execution and yielding is disabled. :: Please retry your operation or multi-docu"
+                    }
+                },
+                {
+                    "procesos": 8,
+                    "ops_por_seg": 260.1,
+                    "p50_ms": 4.4,
+                    "p95_ms": 48,
+                    "p99_ms": 81.3,
+                    "reintentos_por_op": 1.47,
+                    "agotados": 441,
+                    "pct_agotados": 17.49,
+                    "mensajes": {
+                        "BulkWriteException": "Caused by :: Write conflict during plan execution and yielding is disabled. :: Please retry your operation or multi-docu"
+                    }
+                },
+                {
+                    "procesos": 16,
+                    "ops_por_seg": 258.8,
+                    "p50_ms": 4.7,
+                    "p95_ms": 56,
+                    "p99_ms": 85.1,
+                    "reintentos_por_op": 3.02,
+                    "agotados": 1012,
+                    "pct_agotados": 32.84,
+                    "mensajes": {
+                        "BulkWriteException": "Caused by :: Write conflict during plan execution and yielding is disabled. :: Please retry your operation or multi-docu"
+                    }
+                }
+            ]
+        }
+    }
+}

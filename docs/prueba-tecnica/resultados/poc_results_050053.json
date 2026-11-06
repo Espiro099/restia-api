@@ -1,0 +1,121 @@
+{
+    "1": {
+        "pass": true,
+        "detail": {
+            "valido": 200,
+            "invalido": 401,
+            "sin_token": 401,
+            "vencido": 401,
+            "revocado": 401,
+            "last_used_at": true,
+            "hash_guardado": true,
+            "tras_prune": 0,
+            "id_tipo": "string"
+        }
+    },
+    "2": {
+        "pass": true,
+        "detail": {
+            "csrf_cookie": 204,
+            "login_sin_csrf": 419,
+            "clave_mala": 422,
+            "login": 200,
+            "me": 200,
+            "docs_sesion": 1,
+            "con_usuario": 1,
+            "logout": 204,
+            "me_tras_logout": 401
+        }
+    },
+    "3": {
+        "pass": true,
+        "detail": {
+            "con_escritura": [
+                {
+                    "media_ms": 177.2,
+                    "p95_ms": 184.2
+                },
+                {
+                    "media_ms": 176.4,
+                    "p95_ms": 191.2
+                }
+            ],
+            "sin_escritura": [
+                {
+                    "media_ms": 170.3,
+                    "p95_ms": 178.5
+                },
+                {
+                    "media_ms": 166.6,
+                    "p95_ms": 176.9
+                }
+            ],
+            "costo_ms": 8.4
+        }
+    },
+    "4": {
+        "pass": false,
+        "detail": {
+            "excepcion": "RuntimeException",
+            "mensaje": "worker: The \"scenario\" option does not exist.",
+            "en": "PocRun.php:185"
+        }
+    },
+    "5": {
+        "pass": false,
+        "detail": {
+            "excepcion": "RuntimeException",
+            "mensaje": "worker: The \"scenario\" option does not exist.",
+            "en": "PocRun.php:185"
+        }
+    },
+    "6": {
+        "pass": false,
+        "detail": {
+            "excepcion": "RuntimeException",
+            "mensaje": "worker: The \"scenario\" option does not exist.",
+            "en": "PocRun.php:185"
+        }
+    },
+    "8": {
+        "pass": true,
+        "detail": {
+            "ida_y_vuelta": {
+                "10.50": "10.50",
+                "0.10": "0.10",
+                "0.20": "0.20",
+                "1234567890.1234": "1234567890.1234",
+                "100.00": "100.00"
+            },
+            "suma_0_10_0_20": "0.30",
+            "tipo_guardado": "MongoDB\\BSON\\Decimal128",
+            "eloquent_atributo": "10.50",
+            "eloquent_json": "10.50"
+        }
+    },
+    "9": {
+        "pass": true,
+        "detail": {
+            "sin_validar_operador": [
+                200,
+                {
+                    "n": 2
+                }
+            ],
+            "sin_validar_normal": [
+                200,
+                {
+                    "n": 1
+                }
+            ],
+            "validado_operador": 422,
+            "validado_normal": [
+                200,
+                {
+                    "n": 1
+                }
+            ],
+            "validado_cuerpo_json": 422
+        }
+    }
+}
