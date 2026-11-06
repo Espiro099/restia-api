@@ -32,12 +32,8 @@ jobs:
       MONGODB_URI: mongodb://127.0.0.1:27018/?replicaSet=rs-restia
     steps:
       - uses: actions/checkout@v4
-      - name: MongoDB como replica set
-        uses: supercharge/mongodb-github-action@1.12.0
-        with:
-          mongodb-version: "8.0"
-          mongodb-replica-set: rs-restia
-          mongodb-port: 27018
+      - name: Arranca MongoDB
+        run: docker run -d --name mongo --network host mongo:8.0 --replSet rs-restia --port 27018 --bind_ip 127.0.0.1
       - uses: shivammathur/setup-php@v2
         with:
           php-version: "8.4"
@@ -45,6 +41,14 @@ jobs:
           coverage: none
       - run: composer install --no-interaction --no-progress --prefer-dist
       - run: cp .env.example .env && php artisan key:generate
+      - name: Inicia el replica set con el mismo comando que en local
+        run: |
+          for i in $(seq 1 10); do
+            php artisan restia:replica-init --port=27018 && exit 0
+            sleep 3
+          done
+          docker logs mongo | tail -50
+          exit 1
       - run: php artisan migrate --force
       - run: vendor/bin/pint --test
       - run: php artisan test
