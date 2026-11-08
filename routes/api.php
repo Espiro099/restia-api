@@ -48,6 +48,9 @@ Route::middleware('auth.session')->group(function () {
         Route::get('orders', 'orders')->middleware('branch:orders.read');
         Route::post('orders', 'createOrder')->middleware('branch:orders.create');
         Route::get('orders/{orderId}', 'order')->middleware('branch:orders.read');
+        Route::patch('orders/{orderId}/items/{itemId}', 'updateItem')->middleware('branch:orders.update');
+        Route::get('order-units', 'units')->middleware('branch:orders.read');
+        Route::post('order-units/{unitId}/station', 'reassign')->middleware('branch:order_units.reassign');
         // El permiso depende de la acción (O-10); VOID admite un token de aprobación (D-37).
         Route::post('order-units/transitions', 'transitions')->middleware('branch');
         // Cualquier miembro puede pedir la autorización; el aprobador es quien necesita el permiso.
