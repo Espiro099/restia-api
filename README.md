@@ -85,10 +85,31 @@ Los cambios a una sesión ya abierta piden `If-Match` con su `version` y respond
 
 Pendiente:
 
-- **Siguiente parte de la fase 4:** altas y cambios del catálogo; editar notas y reasignar estación; cola de cocina (`GET /order-units`); impresión.
+- **Siguiente parte de la fase 4:** editar notas y reasignar estación; cola de cocina (`GET /order-units`); impresión.
 - **Con Inventory:** consumo de inventario en `START`.
 - **Con Checks (fase 5):** asignar unidades a cuentas, `ORDER_UNIT_PAID` y `CUENTA_SOLICITADA`.
 - **Con Public QR:** el estado `POSIBLE_OCUPACION`.
+
+## Catálogo y mesas
+
+Altas y cambios para el panel Web. La app Android solo lee el catálogo y marca productos agotados.
+
+| Operación | Ruta |
+|---|---|
+| Mesas: alta, cambios y estado | `POST /branches/{branchId}/tables`, `PATCH .../tables/{tableId}`, `POST .../tables/{tableId}/status` |
+| Estaciones | `GET`, `POST .../stations`, `GET`, `PATCH .../stations/{stationId}`, `POST .../{stationId}/status` |
+| Modificadores y sus opciones | `GET`, `POST .../modifiers`, `GET`, `PATCH .../modifiers/{modifierId}`, `POST .../{modifierId}/status` |
+| Productos | `GET`, `POST .../products`, `GET`, `PATCH .../products/{productId}`, `POST .../{productId}/status` |
+| Agotar un producto, sin `If-Match` | `POST .../products/{productId}/availability` |
+| Estaciones de un producto (M-2) | `PUT .../products/{productId}/routes` |
+
+- **Productos:** nacen inactivos. Para activarse necesitan al menos una ruta a una estación activa (`PRODUCT_NOT_SELLABLE`).
+- **Estaciones:** no se pueden desactivar si les quedan platillos sin terminar, ni si son la única ruta de un producto activo (`STATION_IN_USE`).
+- **Opciones de un modificador:** no se borran, para que las comandas viejas sigan apuntando a ellas. Se desactivan.
+- **Mesas:** una mesa con sesión o limpieza pendiente no puede salir de `ACTIVE` (`TABLE_ALREADY_ASSIGNED`).
+- **`menu_version`:** cada cambio del catálogo la sube. Es el `ETag` de `GET /menu`.
+
+Las recetas llegan con Inventory y el QR de mesa con Public QR. Estas rutas ya validan la sesión Bearer. La sesión con cookie del panel Web llega con el cliente Web.
 
 Mientras no exista el panel Web para dar de alta el catálogo, `restia:demo` carga datos de prueba en una sucursal vacía: 6 mesas, cocina y barra, modificadores y productos (uno agotado). Con `--staff` crea además `mesero@demo.mx`, `cocina@demo.mx` y `gerente@demo.mx`, con la contraseña de `RESTIA_DEMO_PASSWORD`. No corre en producción.
 
