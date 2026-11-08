@@ -74,6 +74,9 @@ Lo que la app Android usa para atender una mesa:
 | Comandas (O-1, O-2) | `GET`, `POST /branches/{branchId}/orders`, `GET .../{orderId}` |
 | Cambios de estado por lote (O-5) | `POST /branches/{branchId}/order-units/transitions` |
 | Autorización de un gerente (D-37) | `POST /branches/{branchId}/approvals` |
+| Cola de cocina, barra y entrega, con `ETag` (RT-1) | `GET /branches/{branchId}/order-units` |
+| Editar las notas de una partida (O-2) | `PATCH .../orders/{orderId}/items/{itemId}` |
+| Reasignar la estación de una unidad (O-11) | `POST .../order-units/{unitId}/station` |
 | Editar comensales y responsable (con `If-Match`) | `PATCH .../table-sessions/{sessionId}` |
 | Agregar y separar mesas (T-1) | `POST .../{sessionId}/tables`, `POST .../{sessionId}/tables/{tableId}/release` |
 | Cerrar y cancelar la sesión (T-3, T-4) | `POST .../{sessionId}/close`, `POST .../{sessionId}/cancel` |
@@ -81,11 +84,13 @@ Lo que la app Android usa para atender una mesa:
 
 Las operaciones que crean o cambian algo exigen `Idempotency-Key` (CON-1): `App\Support\Idempotency` guarda la respuesta en `idempotency_records`, en la misma transacción, durante 72 horas.
 
+La cola sin `status` trae solo lo que sigue en curso (`PENDING`, `PREPARING` y `READY`), de lo más antiguo a lo más reciente, con nombre, modificadores, notas y números de mesa. Las notas se editan mientras todas las unidades de la partida estén `PENDING`, y la estación se reasigna solo en `PENDING`.
+
 Los cambios a una sesión ya abierta piden `If-Match` con su `version` y responden con el `ETag` nuevo. Cerrar deja cada mesa en `POR_LIMPIAR`; la sesión pasa a `CLOSED` cuando se confirma la limpieza de la última. Confirmar la limpieza no pide `If-Match`: usa `membershipVersion`, la versión de membresía con la que la mesa entró a limpieza, y repetirla no cambia nada.
 
 Pendiente:
 
-- **Siguiente parte de la fase 4:** editar notas y reasignar estación; cola de cocina (`GET /order-units`); impresión.
+- **Siguiente parte de la fase 4:** impresión.
 - **Con Inventory:** consumo de inventario en `START`.
 - **Con Checks (fase 5):** asignar unidades a cuentas, `ORDER_UNIT_PAID` y `CUENTA_SOLICITADA`.
 - **Con Public QR:** el estado `POSIBLE_OCUPACION`.

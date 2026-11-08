@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Floor\Approvals;
+use App\Floor\Kitchen;
 use App\Floor\Menu;
 use App\Floor\Orders;
 use App\Floor\SessionLifecycle;
@@ -12,6 +13,8 @@ use App\Floor\UnitTransitions;
 use App\Http\Middleware\AuthorizeBranch;
 use App\Models\Branch;
 use App\Models\Order;
+use App\Models\OrderItem;
+use App\Models\OrderItemUnit;
 use App\Models\RestaurantTable;
 use App\Models\TableAssignment;
 use App\Models\TableSession;
@@ -263,6 +266,48 @@ class FloorController extends Controller
         [$status, $data] = Orders::create(AuthorizeBranch::branch($request), $request->user(), $key, $in);
 
         return Api::data($data, $status);
+    }
+
+    /** Cola de cocina, barra y entrega; se consulta cada pocos segundos con ETag (RT-1). */
+    public function units(Request $request): Response
+    {
+        [$page, $perPage] = Api::page($request);
+        $filter = $this->query($request, [
+            'stationId' => ['sometimes', 'string', 'uuid'],
+            'status' => ['sometimes', 'string', Rule::in([OrderItemUnit::PENDING, OrderItemUnit::PREPARING, OrderItemUnit::READY, OrderItemUnit::DELIVERED, OrderItemUnit::CANCELLED, OrderItemUnit::VOIDED])],
+            'sessionId' => ['sometimes', 'string', 'uuid'],
+        ]);
+        [$rows, $total] = Kitchen::queue(AuthorizeBranch::branch($request), $filter, $page, $perPage);
+
+        return Floor::withEtag($request, $rows, Api::pagination($page, $perPage, $total));
+    }
+
+    public function updateItem(Request $request, string $branchId, string $orderId, string $itemId): JsonResponse
+    {
+        $version = Floor::ifMatch($request);
+        $in = Api::body($request, ['notes' => ['present', 'nullable', 'string', 'max:500']]);
+        $branch = AuthorizeBranch::branch($request);
+        $order = Order::query()->forBranch($branch)->where('uuid', Floor::uuid($orderId))->first() ?? throw new NotFoundHttpException;
+        $item = OrderItem::query()->forBranch($branch)->where('order_id', new ObjectId($order->getKey()))->where('uuid', Floor::uuid($itemId))->first()
+            ?? throw new NotFoundHttpException;
+        $item = Kitchen::editNotes($branch, $request->user(), $item, $version, $in['notes']);
+        $response = Api::data(Orders::presentMany($branch, collect([$order]))[0]);
+        $response->headers->set('ETag', Floor::versionEtag((int) $item->version));
+
+        return $response;
+    }
+
+    public function reassign(Request $request, string $branchId, string $unitId): JsonResponse
+    {
+        $version = Floor::ifMatch($request);
+        $in = Api::body($request, ['stationId' => ['required', 'string', 'uuid'], 'reason' => ['required', 'string', 'min:3', 'max:500']]);
+        $branch = AuthorizeBranch::branch($request);
+        $unit = OrderItemUnit::query()->forBranch($branch)->where('uuid', Floor::uuid($unitId))->first() ?? throw new NotFoundHttpException;
+        $unit = Kitchen::reassign($branch, $request->user(), $unit, $version, $in['stationId'], $in['reason']);
+        $response = Api::data(Kitchen::unit($branch, $unit));
+        $response->headers->set('ETag', Floor::versionEtag((int) $unit->version));
+
+        return $response;
     }
 
     public function transitions(Request $request): JsonResponse
