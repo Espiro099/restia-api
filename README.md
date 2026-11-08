@@ -62,6 +62,34 @@ Cada ruta autenticada pasa por dos middleware:
 
 Los permisos por rol están en `config/permissions.php`, generado por `tools/gen_permissions.py` desde `docs/Matriz_Endpoints.md` y la tabla de permisos de `Decisiones_Orders.md`. Las duraciones y límites de D-36 están en `config/restia.php`.
 
+## Servicio en piso (fase 4, primera parte)
+
+Lo que la app Android usa para atender una mesa:
+
+| Operación | Ruta |
+|---|---|
+| Mesas con estado operativo derivado (T-5) | `GET /branches/{branchId}/tables`, `GET .../tables/{tableId}` |
+| Sesiones de mesa | `GET`, `POST /branches/{branchId}/table-sessions`, `GET .../{sessionId}` |
+| Menú con `ETag` (M-9) | `GET /branches/{branchId}/menu` |
+| Comandas (O-1, O-2) | `GET`, `POST /branches/{branchId}/orders`, `GET .../{orderId}` |
+| Cambios de estado por lote (O-5) | `POST /branches/{branchId}/order-units/transitions` |
+| Autorización de un gerente (D-37) | `POST /branches/{branchId}/approvals` |
+
+Las operaciones que crean o cambian algo exigen `Idempotency-Key` (CON-1): `App\Support\Idempotency` guarda la respuesta en `idempotency_records`, en la misma transacción, durante 72 horas.
+
+Pendiente:
+
+- **Siguiente parte de la fase 4:** agregar y separar mesas, cerrar sesiones, confirmar limpieza y cancelar sesiones; altas y cambios del catálogo; editar notas y reasignar estación; cola de cocina (`GET /order-units`); impresión.
+- **Con Inventory:** consumo de inventario en `START`.
+- **Con Checks (fase 5):** asignar unidades a cuentas, `ORDER_UNIT_PAID` y `CUENTA_SOLICITADA`.
+- **Con Public QR:** el estado `POSIBLE_OCUPACION`.
+
+Mientras no exista el panel Web para dar de alta el catálogo, `restia:demo` carga datos de prueba en una sucursal vacía: 6 mesas, cocina y barra, modificadores y productos (uno agotado). Con `--staff` crea además `mesero@demo.mx`, `cocina@demo.mx` y `gerente@demo.mx`, con la contraseña de `RESTIA_DEMO_PASSWORD`. No corre en producción.
+
+```bash
+RESTIA_DEMO_PASSWORD='una-clave-de-prueba' php artisan restia:demo --branch=CENTRO --staff
+```
+
 ## Pruebas del backend
 
 Con el replica set local arrancado:

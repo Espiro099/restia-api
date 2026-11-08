@@ -58,4 +58,9 @@ class AuthorizeBranch
     {
         return $request->attributes->get(self::BRANCH);
     }
+
+    public static function membership(Request $request): Membership
+    {
+        return $request->attributes->get(self::MEMBERSHIP);
+    }
 }
