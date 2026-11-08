@@ -5,10 +5,12 @@ namespace App\Http\Controllers;
 use App\Floor\Approvals;
 use App\Floor\Menu;
 use App\Floor\Orders;
+use App\Floor\SessionLifecycle;
 use App\Floor\Tables;
 use App\Floor\TableSessions;
 use App\Floor\UnitTransitions;
 use App\Http\Middleware\AuthorizeBranch;
+use App\Models\Branch;
 use App\Models\Order;
 use App\Models\RestaurantTable;
 use App\Models\TableAssignment;
@@ -113,6 +115,83 @@ class FloorController extends Controller
         [$status, $data] = TableSessions::open(AuthorizeBranch::branch($request), $request->user(), $key, $in);
         $response = Api::data($data, $status);
         $response->headers->set('ETag', Floor::versionEtag($data['version']));
+
+        return $response;
+    }
+
+    public function updateSession(Request $request, string $branchId, string $sessionId): JsonResponse
+    {
+        $version = Floor::ifMatch($request);
+        $in = Api::body($request, [
+            'guestCount' => ['sometimes', 'integer', 'min:1', 'max:200'],
+            'responsibleUserId' => ['sometimes', 'string', 'uuid'],
+        ]);
+        if (! $in) {
+            throw ValidationException::withMessages(['body' => 'Indica al menos un campo.']);
+        }
+        [$branch, $session] = $this->sessionFor($request, $sessionId);
+
+        return $this->sessionResponse($branch, SessionLifecycle::update($branch, $session, $request->user(), $version, $in));
+    }
+
+    public function addTables(Request $request, string $branchId, string $sessionId): JsonResponse
+    {
+        $version = Floor::ifMatch($request);
+        $in = Api::body($request, [
+            'tableIds' => ['required', 'array', 'min:1', 'max:20'],
+            'tableIds.*' => ['required', 'string', 'uuid', 'distinct:ignore_case'],
+        ]);
+        [$branch, $session] = $this->sessionFor($request, $sessionId);
+
+        return $this->sessionResponse($branch, SessionLifecycle::addTables($branch, $session, $request->user(), $version, $in['tableIds']));
+    }
+
+    public function releaseTable(Request $request, string $branchId, string $sessionId, string $tableId): JsonResponse
+    {
+        $version = Floor::ifMatch($request);
+        $in = Api::body($request, ['requiresCleaning' => ['required', 'boolean']]);
+        [$branch, $session] = $this->sessionFor($request, $sessionId);
+
+        return $this->sessionResponse($branch, SessionLifecycle::releaseTable($branch, $session, $request->user(), $version, Floor::uuid($tableId), (bool) $in['requiresCleaning']));
+    }
+
+    public function closeSession(Request $request, string $branchId, string $sessionId): JsonResponse
+    {
+        $version = Floor::ifMatch($request);
+        [$branch, $session] = $this->sessionFor($request, $sessionId);
+
+        return $this->sessionResponse($branch, SessionLifecycle::close($branch, $session, $request->user(), $version));
+    }
+
+    public function cancelSession(Request $request, string $branchId, string $sessionId): JsonResponse
+    {
+        $version = Floor::ifMatch($request);
+        $in = Api::body($request, ['reason' => ['required', 'string', 'min:3', 'max:500']]);
+        [$branch, $session] = $this->sessionFor($request, $sessionId);
+
+        return $this->sessionResponse($branch, SessionLifecycle::cancel($branch, $session, $request->user(), $version, $in['reason']));
+    }
+
+    public function confirmCleaning(Request $request, string $branchId, string $sessionId, string $tableId): JsonResponse
+    {
+        $in = Api::body($request, ['membershipVersion' => ['required', 'integer', 'min:1', 'max:2147483647']]);
+        [$branch, $session] = $this->sessionFor($request, $sessionId);
+
+        return $this->sessionResponse($branch, SessionLifecycle::confirmCleaning($branch, $session, $request->user(), Floor::uuid($tableId), (int) $in['membershipVersion']));
+    }
+
+    /** @return array{0: Branch, 1: TableSession} */
+    private function sessionFor(Request $request, string $sessionId): array
+    {
+        $branch = AuthorizeBranch::branch($request);
+
+        return [$branch, TableSession::query()->forBranch($branch)->where('uuid', Floor::uuid($sessionId))->first() ?? throw new NotFoundHttpException];
+    }
+
+    private function sessionResponse(Branch $branch, TableSession $session): JsonResponse
+    {
+        $response = Api::data(TableSessions::present($branch, $session));
+        $response->headers->set('ETag', Floor::versionEtag((int) $session->version));
 
         return $response;
     }

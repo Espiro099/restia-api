@@ -21,7 +21,7 @@ use MongoDB\BSON\ObjectId;
 
 /**
  * Apertura de sesiones (T-1, T-7, T-9) según el caso completo de docs/Guia_Base_de_Datos_MongoDB.md.
- * Agregar y separar mesas, cerrar, limpiar y cancelar quedan para la siguiente parte de la fase 4.
+ * El resto del ciclo de vida está en SessionLifecycle.
  */
 final class TableSessions
 {
@@ -129,12 +129,13 @@ final class TableSessions
             'number' => (int) $tables->get((string) $a->table_id)?->number,
             'phase' => $a->phase,
             'assignedAt' => self::time($a->assigned_at),
-            'cleaningMembershipVersion' => null,
+            // Lo que se envía al confirmar la limpieza de esta mesa.
+            'cleaningMembershipVersion' => $a->phase === 'CLEANING' ? (int) $a->cleaning_membership_version : null,
         ])->sortBy('number')->values()->all();
     }
 
     /** El responsable debe ser un miembro activo de la sucursal; si no, es un dato inválido. */
-    private static function responsible(ObjectId $branchId, string $uuid): ObjectId
+    public static function responsible(ObjectId $branchId, string $uuid): ObjectId
     {
         $user = User::query()->where('uuid', $uuid)->where('status', User::ACTIVE)->first();
         $member = $user && Membership::query()->where('user_id', new ObjectId($user->getKey()))
