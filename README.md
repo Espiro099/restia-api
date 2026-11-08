@@ -74,12 +74,18 @@ Lo que la app Android usa para atender una mesa:
 | Comandas (O-1, O-2) | `GET`, `POST /branches/{branchId}/orders`, `GET .../{orderId}` |
 | Cambios de estado por lote (O-5) | `POST /branches/{branchId}/order-units/transitions` |
 | Autorización de un gerente (D-37) | `POST /branches/{branchId}/approvals` |
+| Editar comensales y responsable (con `If-Match`) | `PATCH .../table-sessions/{sessionId}` |
+| Agregar y separar mesas (T-1) | `POST .../{sessionId}/tables`, `POST .../{sessionId}/tables/{tableId}/release` |
+| Cerrar y cancelar la sesión (T-3, T-4) | `POST .../{sessionId}/close`, `POST .../{sessionId}/cancel` |
+| Confirmar la limpieza de una mesa (T-2) | `POST .../{sessionId}/tables/{tableId}/cleaning-confirmation` |
 
 Las operaciones que crean o cambian algo exigen `Idempotency-Key` (CON-1): `App\Support\Idempotency` guarda la respuesta en `idempotency_records`, en la misma transacción, durante 72 horas.
 
+Los cambios a una sesión ya abierta piden `If-Match` con su `version` y responden con el `ETag` nuevo. Cerrar deja cada mesa en `POR_LIMPIAR`; la sesión pasa a `CLOSED` cuando se confirma la limpieza de la última. Confirmar la limpieza no pide `If-Match`: usa `membershipVersion`, la versión de membresía con la que la mesa entró a limpieza, y repetirla no cambia nada.
+
 Pendiente:
 
-- **Siguiente parte de la fase 4:** agregar y separar mesas, cerrar sesiones, confirmar limpieza y cancelar sesiones; altas y cambios del catálogo; editar notas y reasignar estación; cola de cocina (`GET /order-units`); impresión.
+- **Siguiente parte de la fase 4:** altas y cambios del catálogo; editar notas y reasignar estación; cola de cocina (`GET /order-units`); impresión.
 - **Con Inventory:** consumo de inventario en `START`.
 - **Con Checks (fase 5):** asignar unidades a cuentas, `ORDER_UNIT_PAID` y `CUENTA_SOLICITADA`.
 - **Con Public QR:** el estado `POSIBLE_OCUPACION`.

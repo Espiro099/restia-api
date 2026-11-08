@@ -2,6 +2,7 @@
 
 namespace App\Support;
 
+use App\Exceptions\DomainConflict;
 use App\Models\Branch;
 use Carbon\CarbonInterface;
 use Illuminate\Http\Request;
@@ -59,6 +60,23 @@ final class Floor
         $response->headers->set('ETag', $etag);
 
         return $response;
+    }
+
+    /**
+     * Versión del header If-Match: acepta `"8"`, `W/"8"` y `8`. Sin el header responde
+     * 400 VERSION_REQUIRED; con un valor que no es una versión, 409 VERSION_CONFLICT.
+     */
+    public static function ifMatch(Request $request): int
+    {
+        $sent = trim((string) $request->headers->get('If-Match', ''));
+        if ($sent === '') {
+            throw new DomainConflict('VERSION_REQUIRED');
+        }
+        if (! preg_match('/^(?:W\/)?"?([1-9][0-9]{0,9})"?$/', $sent, $m)) {
+            throw new DomainConflict('VERSION_CONFLICT');
+        }
+
+        return (int) $m[1];
     }
 
     public static function versionEtag(int $version): string

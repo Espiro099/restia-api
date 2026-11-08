@@ -37,6 +37,12 @@ Route::middleware('auth.session')->group(function () {
         Route::get('table-sessions', 'sessions')->middleware('branch:table_sessions.read');
         Route::post('table-sessions', 'openSession')->middleware('branch:table_sessions.open');
         Route::get('table-sessions/{sessionId}', 'session')->middleware('branch:table_sessions.read');
+        Route::patch('table-sessions/{sessionId}', 'updateSession')->middleware('branch:table_sessions.update');
+        Route::post('table-sessions/{sessionId}/tables', 'addTables')->middleware('branch:table_sessions.update');
+        Route::post('table-sessions/{sessionId}/tables/{tableId}/release', 'releaseTable')->middleware('branch:table_sessions.update');
+        Route::post('table-sessions/{sessionId}/tables/{tableId}/cleaning-confirmation', 'confirmCleaning')->middleware('branch:tables.clean');
+        Route::post('table-sessions/{sessionId}/close', 'closeSession')->middleware('branch:table_sessions.close');
+        Route::post('table-sessions/{sessionId}/cancel', 'cancelSession')->middleware('branch:table_sessions.cancel');
         Route::get('menu', 'menu')->middleware('branch:menu.read');
         Route::get('orders', 'orders')->middleware('branch:orders.read');
         Route::post('orders', 'createOrder')->middleware('branch:orders.create');
