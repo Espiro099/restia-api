@@ -163,7 +163,9 @@ for m, pa, o in ops:
     perm = str(x['permission'])
     if perm.startswith('Según action'):
         continue
-    for q in re.findall(r'\b[a-z_]+\.[a-z_]+(?:\.[a-z_]+)?\b', perm):
+    # "TEST exige printing.manage" es un requisito adicional, no una concesión a todos los actores de la
+    # operación: ese permiso sale de sus propias operaciones.
+    for q in re.findall(r'(?<!exige )\b[a-z_]+\.[a-z_]+(?:\.[a-z_]+)?\b', perm):
         pm[q] |= set(x['actors'])
 out += ['## 3. Permisos consolidados', '', 'Roles que invocan cada permiso según el contrato. Las condiciones por rol, como "solo `WAITER` y `KITCHEN`" o "con token", están en la decisión de cada módulo.', '',
         '| Permiso | ADMIN | MANAGER | WAITER | KITCHEN | Otros |', '|---|---|---|---|---|---|']

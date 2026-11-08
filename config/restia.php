@@ -34,4 +34,14 @@ return [
         'approval_seconds' => 120,
         'approvals_per_approver_ip' => 5,
     ],
+
+    // Identidades de servicio (D-36, sección 11) e impresión (Decisiones_Printing).
+    'service' => [
+        'token_days' => 90,
+        // Al rotar, el token anterior sigue valiendo este tiempo, para desplegar sin cortes.
+        'rotation_grace_days' => 7,
+    ],
+    'printing' => [
+        'poll_interval_seconds' => 3,
+    ],
 ];

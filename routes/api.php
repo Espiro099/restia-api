@@ -5,11 +5,13 @@ use App\Http\Controllers\CatalogController;
 use App\Http\Controllers\DeviceController;
 use App\Http\Controllers\FloorController;
 use App\Http\Controllers\MobileAuthController;
+use App\Http\Controllers\PrintingController;
+use App\Http\Controllers\ServiceIdentityController;
 use Illuminate\Support\Facades\Route;
 
 // Todas las rutas quedan bajo /api/v1, como indica `servers` en openapi/restia-api.yaml.
 // Cada módulo agrega aquí sus rutas. Fase 3, Identidad: flujo Android de D-36.
-// Fase 4, servicio en piso: lo que usa la app Android para atender una mesa.
+// Fase 4, servicio en piso: lo que usa la app Android para atender una mesa; e impresión.
 
 Route::prefix('auth/mobile')->controller(MobileAuthController::class)->group(function () {
     Route::post('enroll', 'enroll');
@@ -83,4 +85,40 @@ Route::middleware('auth.session')->group(function () {
         Route::post('products/{productId}/availability', 'productAvailability')->middleware('branch:menu.set_availability');
         Route::put('products/{productId}/routes', 'productRoutes')->middleware('branch:menu.manage');
     });
+
+    // Identidades de servicio (D-36, sección 11): recurso global, visible por sucursal administrada.
+    Route::controller(ServiceIdentityController::class)->prefix('service-identities')->middleware('anybranch:service_identities.manage')->group(function () {
+        Route::get('/', 'index');
+        Route::post('/', 'create');
+        Route::patch('{serviceIdentityId}', 'update');
+        Route::post('{serviceIdentityId}/rotate', 'rotate');
+        Route::post('{serviceIdentityId}/revoke', 'revoke');
+    });
+
+    // Configuración de impresión (Decisiones_Printing).
+    Route::controller(PrintingController::class)->prefix('branches/{branchId}')->group(function () {
+        Route::get('printers', 'printers')->middleware('branch:printing.read');
+        Route::post('printers', 'createPrinter')->middleware('branch:printing.manage');
+        Route::get('printers/{printerId}', 'printer')->middleware('branch:printing.read');
+        Route::patch('printers/{printerId}', 'updatePrinter')->middleware('branch:printing.manage');
+        Route::post('printers/{printerId}/status', 'printerStatus')->middleware('branch:printing.manage');
+
+        Route::get('print-stations', 'printStations')->middleware('branch:printing.read');
+        Route::post('print-stations', 'createPrintStation')->middleware('branch:printing.manage');
+        Route::get('print-stations/{printStationId}', 'printStation')->middleware('branch:printing.read');
+        Route::patch('print-stations/{printStationId}', 'updatePrintStation')->middleware('branch:printing.manage');
+        Route::post('print-stations/{printStationId}/status', 'printStationStatus')->middleware('branch:printing.manage');
+
+        Route::get('print-agents', 'printAgents')->middleware('branch:printing.manage');
+        Route::post('print-agents', 'createPrintAgent')->middleware('branch:printing.manage');
+        Route::get('print-agents/{printAgentId}', 'printAgent')->middleware('branch:printing.manage');
+        Route::post('print-agents/{printAgentId}/status', 'printAgentStatus')->middleware('branch:printing.manage');
+    });
+});
+
+// Service Bearer Token (D-36, sección 11): ni la app ni el panel entran aquí, y el agente no entra allá.
+Route::get('service-identities/me', [ServiceIdentityController::class, 'me'])->middleware('auth.service');
+Route::controller(PrintingController::class)->prefix('print-agent')->middleware('auth.service:PRINTING_AGENT')->group(function () {
+    Route::get('config', 'agentConfig');
+    Route::post('heartbeat', 'agentHeartbeat');
 });

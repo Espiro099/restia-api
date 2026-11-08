@@ -7,9 +7,9 @@ use App\Catalog\Products;
 use App\Catalog\Stations;
 use App\Catalog\TableAdmin;
 use App\Floor\Tables;
+use App\Http\Controllers\Concerns\BranchResources;
 use App\Http\Middleware\AuthorizeBranch;
 use App\Models\Branch;
-use App\Models\Document;
 use App\Models\Modifier;
 use App\Models\Product;
 use App\Models\RestaurantTable;
@@ -18,10 +18,7 @@ use App\Support\Api;
 use App\Support\Floor;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
-use Illuminate\Validation\ValidationException;
-use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 /**
  * Catálogo de la sucursal: estaciones, modificadores y productos (Menu), y alta y cambios de mesas.
@@ -29,6 +26,8 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
  */
 class CatalogController extends Controller
 {
+    use BranchResources;
+
     private const CODE = ['required', 'string', 'regex:/^[A-Z0-9_-]{2,32}$/'];
 
     private const NAME = ['string', 'min:1', 'max:120'];
@@ -223,56 +222,6 @@ class CatalogController extends Controller
 
     // ---------------------------------------------------------------- Ayudas
 
-    /**
-     * @param  class-string<Document>  $model
-     * @param  list<string>  $order
-     */
-    private function list(Request $request, string $model, array $order, \Closure $present): JsonResponse
-    {
-        [$page, $perPage] = Api::page($request);
-        $v = Validator::make($request->query(), [
-            'status' => ['sometimes', 'string', Rule::in(['ACTIVE', 'INACTIVE'])],
-            'page' => ['sometimes'], 'perPage' => ['sometimes'],
-        ]);
-        if ($v->fails()) {
-            throw new ValidationException($v);
-        }
-        $branch = AuthorizeBranch::branch($request);
-        $query = $model::query()->forBranch($branch);
-        if ($request->query('status') !== null) {
-            $query->where('status', $request->query('status'));
-        }
-        $total = (clone $query)->count();
-        foreach ($order as $field) {
-            $query->orderBy($field);
-        }
-        $rows = $query->skip(($page - 1) * $perPage)->take($perPage)->get();
-
-        return Api::data($present($branch, $rows), meta: Api::pagination($page, $perPage, $total));
-    }
-
-    /**
-     * @template T of Document
-     *
-     * @param  class-string<T>  $model
-     * @return array{0: Branch, 1: T}
-     */
-    private function find(Request $request, string $model, string $id): array
-    {
-        $branch = AuthorizeBranch::branch($request);
-
-        return [$branch, $model::query()->forBranch($branch)->where('uuid', Floor::uuid($id))->first() ?? throw new NotFoundHttpException];
-    }
-
-    /** @param array<string, mixed> $data */
-    private function one(array $data, Document $doc, int $status = 200): JsonResponse
-    {
-        $response = Api::data($data, $status);
-        $response->headers->set('ETag', Floor::versionEtag((int) $doc->version));
-
-        return $response;
-    }
-
     private function productResponse(Branch $branch, Product $p, int $status = 200): JsonResponse
     {
         return $this->one(Products::present($branch, collect([$p]))[0], $p, $status);
@@ -281,26 +230,6 @@ class CatalogController extends Controller
     private function tableResponse(Branch $branch, RestaurantTable $t, int $status = 200): JsonResponse
     {
         return $this->one(Tables::present($branch, collect([$t]))[0], $t, $status);
-    }
-
-    /** `minProperties: 1`: un PATCH vacío no tiene nada que cambiar. */
-    private function patchBody(Request $request, array $rules): array
-    {
-        $in = Api::body($request, $rules);
-        if (! $in) {
-            throw ValidationException::withMessages(['body' => 'Indica al menos un campo.']);
-        }
-
-        return $in;
-    }
-
-    /** @param list<string> $statuses */
-    private function statusBody(Request $request, array $statuses): array
-    {
-        return Api::body($request, [
-            'status' => ['required', 'string', Rule::in($statuses)],
-            'reason' => ['required', 'string', 'min:3', 'max:500'],
-        ]);
     }
 
     /** @return array<string, mixed> */

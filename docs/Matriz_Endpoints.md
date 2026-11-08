@@ -399,7 +399,7 @@ Roles que invocan cada permiso según el contrato. Las condiciones por rol, como
 | `payments.read` | Sí | Sí | Sí | – | – |
 | `payments.reconcile` | Sí | Sí | – | – | – |
 | `payments.record_result` | Sí | Sí | Sí | – | – |
-| `printing.manage` | Sí | Sí | Sí | – | – |
+| `printing.manage` | Sí | Sí | – | – | – |
 | `printing.read` | Sí | Sí | Sí | Sí | – |
 | `printing.reprint` | Sí | Sí | Sí | Sí | – |
 | `printing.request` | Sí | Sí | Sí | – | – |

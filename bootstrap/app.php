@@ -1,7 +1,9 @@
 <?php
 
 use App\Http\Middleware\AssignRequestId;
+use App\Http\Middleware\AuthenticateService;
 use App\Http\Middleware\AuthenticateSession;
+use App\Http\Middleware\AuthorizeAnyBranch;
 use App\Http\Middleware\AuthorizeBranch;
 use App\Support\ApiErrors;
 use Illuminate\Foundation\Application;
@@ -21,6 +23,8 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'auth.session' => AuthenticateSession::class,
             'branch' => AuthorizeBranch::class,
+            'anybranch' => AuthorizeAnyBranch::class,
+            'auth.service' => AuthenticateService::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
