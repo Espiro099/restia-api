@@ -27,12 +27,40 @@ php artisan migrate
 ```
 
 ```bash
+php artisan restia:install
+```
+
+```bash
 php artisan serve
 ```
 
 `mongo-local.ps1` arranca MongoDB como replica set de un nodo en el puerto **27018**, con sus datos en `.mongo-data/`. No toca un MongoDB que ya corra como servicio en el 27017. Para detenerlo: `.\scripts\mongo-local.ps1 -Stop`. Si `php` no está en el PATH, pasa `-Php <ruta a php.exe>`.
 
+`restia:install` crea la primera sucursal y su `ADMIN` (decisión B-2), y solo funciona con la base vacía. Pide los datos o los toma de `--branch-code`, `--branch-name`, `--email` y `--name`. La contraseña se pide sin eco o se lee de `RESTIA_ADMIN_PASSWORD`; nunca va en un argumento.
+
 La API responde en `http://127.0.0.1:8000/api/v1`, y `GET /up` indica si la aplicación está viva.
+
+## Identidad (fase 3)
+
+Flujo Android de D-36, ya implementado:
+
+| Operación | Ruta |
+|---|---|
+| Código de alta (gerente) | `POST /branches/{branchId}/devices/enrollment-codes` |
+| Alta del dispositivo | `POST /auth/mobile/enroll` |
+| Login, renovación y logout | `POST /auth/mobile/login`, `/auth/mobile/refresh`, `/auth/logout` |
+| Usuario, membresías y permisos | `GET /auth/me` |
+| Sesiones propias | `GET /auth/sessions`, `POST /auth/sessions/{sessionId}/revoke` |
+| Dispositivos | `GET /branches/{branchId}/devices`, `POST .../{deviceId}/block` y `/retire` |
+
+Falta: login Web con cookie y CSRF, revocar sesiones de otro usuario, contraseñas (U-2), altas de empleados y gestión de sucursales.
+
+Cada ruta autenticada pasa por dos middleware:
+
+- `auth.session`: Bearer de Sanctum, y además sesión `ACTIVE` y en plazo, usuario activo y, en Android, dispositivo activo. Se revisa en cada petición, así que revocar corta el acceso al instante.
+- `branch:<permiso>`: sucursal de la ruta, que el dispositivo sea de esa sucursal (A-6), membresía activa y permiso del rol.
+
+Los permisos por rol están en `config/permissions.php`, generado por `tools/gen_permissions.py` desde `docs/Matriz_Endpoints.md` y la tabla de permisos de `Decisiones_Orders.md`. Las duraciones y límites de D-36 están en `config/restia.php`.
 
 ## Pruebas del backend
 
@@ -53,6 +81,8 @@ Usan la base `restia_test` y la borran al empezar; nunca tocan `restia`.
 | Transacciones | `app/Support/Mongo.php` | Hasta 10 reintentos con espera aleatoria; reintentos agotados son `503 SERVICE_BUSY` |
 | Documentos | `app/Models/Document.php` y `Concerns/` | `uuid` público, `_id` oculto, `version` y `forBranch` por `ObjectId` |
 | Conflictos | `app/Exceptions/DomainConflict.php` | Una regla de negocio violada, con su código del catálogo |
+| Respuestas | `app/Support/Api.php` | Envoltura `{data, meta}`, paginación y validación que rechaza campos no declarados |
+| Auditoría y outbox | `app/Support/Audit.php`, `Outbox.php` | Se escriben en la misma transacción que el cambio |
 
 Cómo modelar cada colección está en `docs/Guia_Base_de_Datos_MongoDB.md`.
 
@@ -95,7 +125,11 @@ Escribe `docs/Catalogo_Errores.md`, `docs/Matriz_Endpoints.md`, `docs/Matriz_Tra
 python tools/gen_error_catalog.py
 ```
 
-La integración continua falla si `config/errors.php` no coincide con el catálogo.
+```bash
+python tools/gen_permissions.py
+```
+
+La integración continua falla si `config/errors.php` o `config/permissions.php` no coinciden con lo generado.
 
 `tools/apply_conflict_codes.py` y `tools/apply_security_fixes.py` se usaron una sola vez para aplicar revisiones al contrato. Se conservan como registro; no hace falta volver a ejecutarlos.
 
