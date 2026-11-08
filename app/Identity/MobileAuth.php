@@ -290,7 +290,8 @@ final class MobileAuth
         return $device;
     }
 
-    private static function dummyHash(): string
+    /** Hash fijo para comparar cuando el usuario no existe: el tiempo de respuesta no lo delata. */
+    public static function dummyHash(): string
     {
         static $hash;
 

@@ -24,4 +24,14 @@ return [
             'enrollment_codes_per_user' => 10,
         ],
     ],
+
+    // Servicio en piso (fase 4).
+    'floor' => [
+        // Corte de business_date si la sucursal no define el suyo (B-6).
+        'business_day_cutoff' => '04:00',
+        'idempotency_hours' => 72,
+        // D-37: el token de un gerente dura 2 minutos; 5 intentos por minuto por aprobador e IP.
+        'approval_seconds' => 120,
+        'approvals_per_approver_ip' => 5,
+    ],
 ];
