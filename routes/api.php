@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AccountController;
+use App\Http\Controllers\CatalogController;
 use App\Http\Controllers\DeviceController;
 use App\Http\Controllers\FloorController;
 use App\Http\Controllers\MobileAuthController;
@@ -51,5 +52,32 @@ Route::middleware('auth.session')->group(function () {
         Route::post('order-units/transitions', 'transitions')->middleware('branch');
         // Cualquier miembro puede pedir la autorización; el aprobador es quien necesita el permiso.
         Route::post('approvals', 'approve')->middleware('branch');
+    });
+
+    // Catálogo y mesas: altas y cambios para el panel Web; Android lee y marca productos agotados.
+    Route::controller(CatalogController::class)->prefix('branches/{branchId}')->group(function () {
+        Route::post('tables', 'createTable')->middleware('branch:tables.manage');
+        Route::patch('tables/{tableId}', 'updateTable')->middleware('branch:tables.manage');
+        Route::post('tables/{tableId}/status', 'tableStatus')->middleware('branch:tables.manage');
+
+        Route::get('stations', 'stations')->middleware('branch:menu.read');
+        Route::post('stations', 'createStation')->middleware('branch:menu.manage');
+        Route::get('stations/{stationId}', 'station')->middleware('branch:menu.read');
+        Route::patch('stations/{stationId}', 'updateStation')->middleware('branch:menu.manage');
+        Route::post('stations/{stationId}/status', 'stationStatus')->middleware('branch:menu.manage');
+
+        Route::get('modifiers', 'modifiers')->middleware('branch:menu.read');
+        Route::post('modifiers', 'createModifier')->middleware('branch:menu.manage');
+        Route::get('modifiers/{modifierId}', 'modifier')->middleware('branch:menu.read');
+        Route::patch('modifiers/{modifierId}', 'updateModifier')->middleware('branch:menu.manage');
+        Route::post('modifiers/{modifierId}/status', 'modifierStatus')->middleware('branch:menu.manage');
+
+        Route::get('products', 'products')->middleware('branch:menu.read');
+        Route::post('products', 'createProduct')->middleware('branch:menu.manage');
+        Route::get('products/{productId}', 'product')->middleware('branch:menu.read');
+        Route::patch('products/{productId}', 'updateProduct')->middleware('branch:menu.manage');
+        Route::post('products/{productId}/status', 'productStatus')->middleware('branch:menu.manage');
+        Route::post('products/{productId}/availability', 'productAvailability')->middleware('branch:menu.set_availability');
+        Route::put('products/{productId}/routes', 'productRoutes')->middleware('branch:menu.manage');
     });
 });
