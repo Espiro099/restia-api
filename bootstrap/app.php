@@ -1,6 +1,8 @@
 <?php
 
 use App\Http\Middleware\AssignRequestId;
+use App\Http\Middleware\AuthenticateSession;
+use App\Http\Middleware\AuthorizeBranch;
 use App\Support\ApiErrors;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -16,6 +18,10 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         // Primero que todo: cada respuesta, incluso de error, lleva X-Request-ID.
         $middleware->prepend(AssignRequestId::class);
+        $middleware->alias([
+            'auth.session' => AuthenticateSession::class,
+            'branch' => AuthorizeBranch::class,
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         ApiErrors::register($exceptions);

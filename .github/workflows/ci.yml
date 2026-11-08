@@ -19,11 +19,12 @@ jobs:
           python-version: "3.12"
       - run: pip install -r tests/requirements.txt
       - run: python -m pytest -q tests/contract
-      - name: El catálogo de errores de PHP coincide con el contrato
+      - name: El catálogo de errores y la matriz de permisos de PHP coinciden con el contrato
         run: |
           python tools/gen_matrices.py > /dev/null
           python tools/gen_error_catalog.py
-          git diff --exit-code -- docs tests/contract config/errors.php
+          python tools/gen_permissions.py
+          git diff --exit-code -- docs tests/contract config/errors.php config/permissions.php
 
   backend:
     name: Pruebas del backend
