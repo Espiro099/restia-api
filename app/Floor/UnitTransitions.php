@@ -3,6 +3,7 @@
 namespace App\Floor;
 
 use App\Exceptions\DomainConflict;
+use App\Inventory\Consumption;
 use App\Models\Branch;
 use App\Models\Membership;
 use App\Models\Order;
@@ -18,8 +19,7 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 /**
  * Cambios de estado por lote (O-5): hasta 50 unidades, todo o nada, con la versión de cada una.
  *
- * Pendiente: el consumo de inventario en START (O-6) llega con Inventory, y ORDER_UNIT_PAID con Checks.
- * Hasta entonces START no registra movimientos y `recipeVersion` queda en null.
+ * START consume inventario según la receta vigente (O-6, I-1). Pendiente: ORDER_UNIT_PAID llega con Checks.
  */
 final class UnitTransitions
 {
@@ -69,6 +69,9 @@ final class UnitTransitions
             }
 
             $approvedBy = $withApproval ? Approvals::consume($branchId, $approvalToken, 'ORDER_UNIT_VOID', $requested->keys()->all(), $reason) : null;
+            // START consume inventario (O-6, I-1); un faltante se salta con un token INVENTORY_OVERRIDE.
+            $consumption = $in['action'] === 'START' ? Consumption::plan($branchId, $units) : null;
+            $overrideBy = $consumption ? Consumption::authorize($branchId, $consumption, $approvalToken, $requested->keys()->all(), $reason) : null;
 
             $now = now();
             $changes = ['status' => $action['to'], $action['at'] => $now, 'updated_at' => $now];
@@ -76,17 +79,23 @@ final class UnitTransitions
                 $changes['reason'] = $reason;
             }
             foreach ($units as $u) {
+                $unitChanges = $consumption ? $changes + ['recipe_version' => $consumption[$u->uuid]['recipe_version']] : $changes;
                 $modified = OrderItemUnit::query()->where('_id', new ObjectId($u->getKey()))
                     ->where('version', (int) $u->version)->whereIn('status', $action['from'])
-                    ->increment('version', 1, $changes);
+                    ->increment('version', 1, $unitChanges);
                 if ($modified === 0) {
                     throw new DomainConflict('VERSION_CONFLICT', ['unitIds' => [$u->uuid]]);
                 }
                 Audit::record($action['event'], 'order_unit', $u->getKey(), $branchId, $actorId, reason: $reason, changes: array_filter([
                     'status' => ['from' => $u->status, 'to' => $action['to']],
                     'approvedBy' => $approvedBy ? (string) $approvedBy : null,
+                    'inventoryOverrideBy' => $overrideBy ? (string) $overrideBy : null,
                 ]));
                 Outbox::publish($action['event'], 'order_unit', $u->getKey(), $branchId, ['unitId' => $u->uuid]);
+            }
+
+            if ($consumption) {
+                Consumption::record($branchId, $consumption, $units, $actorId, $overrideBy, $reason);
             }
 
             $orderIds = $units->map(fn ($u) => (string) $u->order_id)->unique()->values();

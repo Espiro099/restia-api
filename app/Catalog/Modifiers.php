@@ -2,6 +2,7 @@
 
 namespace App\Catalog;
 
+use App\Inventory\Ingredients;
 use App\Models\Branch;
 use App\Models\Modifier;
 use App\Models\User;
@@ -41,6 +42,7 @@ final class Modifiers
     /** @param array<string, mixed> $in */
     public static function create(Branch $branch, User $actor, array $in): Modifier
     {
+        self::assertIngredients($branch, $in['options']);
         $options = self::options($in['options'], []);
         self::selections((int) $in['minSelections'], (int) $in['maxSelections'], $options);
 
@@ -53,6 +55,10 @@ final class Modifiers
     /** @param array<string, mixed> $in */
     public static function update(Branch $branch, User $actor, Modifier $m, int $version, array $in): Modifier
     {
+        if (array_key_exists('options', $in)) {
+            self::assertIngredients($branch, $in['options']);
+        }
+
         return Catalog::change($branch, $actor, $m, $version, 'modifier.updated', 'modifier', function (Modifier $fresh) use ($in) {
             $changes = [];
             if (array_key_exists('name', $in)) {
@@ -93,6 +99,20 @@ final class Modifiers
      * @param  array<int, array<string, mixed>>  $existing
      * @return list<array<string, mixed>>
      */
+    /** Los ajustes de ingredientes de cada opción deben apuntar a ingredientes de la sucursal. */
+    private static function assertIngredients(Branch $branch, array $options): void
+    {
+        $byField = [];
+        foreach (array_values($options) as $i => $o) {
+            foreach (array_values($o['ingredientAdjustments'] ?? []) as $j => $a) {
+                $byField["options.$i.ingredientAdjustments.$j.ingredientId"] = $a['ingredientId'];
+            }
+        }
+        if ($byField) {
+            Ingredients::resolve($branch, $byField);
+        }
+    }
+
     private static function options(array $input, array $existing): array
     {
         $known = collect($existing)->keyBy(fn ($o) => $o['uuid']);
