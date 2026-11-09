@@ -5,11 +5,11 @@ Fuentes, en este orden:
 2. La tabla de permisos de docs/decisiones/Decisiones_Orders.md, sección 4: agrega los permisos de
    transición de unidades (`order_units.deliver`, `order_units.cancel`, `order_units.prepare`) y da
    `order_units.void` directo a ADMIN y MANAGER. "Con token" no cuenta: ese caso usa X-Approval-Token.
-3. Las tablas de permisos de Decisiones_Checks.md (sección 4), Decisiones_Inventory.md y
-   Decisiones_Printing.md (sección 5): mandan sobre
+3. Las tablas de permisos de Decisiones_Checks.md (sección 4), Decisiones_Cash.md,
+   Decisiones_Inventory.md y Decisiones_Printing.md (sección 5): mandan sobre
    lo anterior para sus permisos. Así KITCHEN no recibe `inventory.adjust` por aparecer junto a
    `inventory.record_waste`, `inventory.override`, que solo usa un aprobador, sí existe, y WAITER
-   reabre cuentas y da cortesías solo con token.
+   reabre cuentas y da cortesías solo con token y no ve montos de caja.
 
 En 1 y 2 un permiso solo se concede con "Sí". No editar config/permissions.php a mano.
 """
@@ -66,6 +66,7 @@ def override(path, start):
 
 
 override('docs/decisiones/Decisiones_Checks.md', '## 4.')
+override('docs/decisiones/Decisiones_Cash.md', '## 5.')
 override('docs/decisiones/Decisiones_Inventory.md', '## 5.')
 override('docs/decisiones/Decisiones_Printing.md', '## 5.')
 

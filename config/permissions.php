@@ -193,7 +193,6 @@ return [
             'tables.read',
         ],
         'WAITER' => [
-            'cash.read',
             'cash.read_open',
             'checks.cancel',
             'checks.create',
