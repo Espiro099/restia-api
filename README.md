@@ -91,7 +91,7 @@ Los cambios a una sesión ya abierta piden `If-Match` con su `version` y respond
 Pendiente:
 
 - **Con Checks, Payments y Cash:** imprimir precuenta, recibo y reporte de caja; hoy solo se pide `TEST` a mano.
-- **Con Inventory:** consumo de inventario en `START`.
+- **Con Inventory (fase 5):** recepciones y conteos físicos.
 - **Con Checks (fase 5):** asignar unidades a cuentas, `ORDER_UNIT_PAID` y `CUENTA_SOLICITADA`.
 - **Con Public QR:** el estado `POSIBLE_OCUPACION`.
 
@@ -121,6 +121,24 @@ Mientras no exista el panel Web para dar de alta el catálogo, `restia:demo` car
 ```bash
 RESTIA_DEMO_PASSWORD='una-clave-de-prueba' php artisan restia:demo --branch=CENTRO --staff
 ```
+
+## Inventario: catálogo y consumo
+
+Decisiones_Inventory. Recepciones y conteos llegan en la fase 5; mientras tanto, el stock inicial se carga con un ajuste.
+
+| Operación | Ruta |
+|---|---|
+| Ingredientes | `GET`, `POST /branches/{branchId}/ingredients`, `GET`, `PATCH .../ingredients/{ingredientId}`, `POST .../{ingredientId}/status` |
+| Bloqueo alimentario, sin `If-Match` | `POST .../ingredients/{ingredientId}/food-safety` |
+| Recetas de un producto | `GET`, `POST .../products/{productId}/recipes`, `GET .../recipes/{recipeVersion}` |
+| Movimientos: consulta, ajuste y desperdicio | `GET`, `POST .../inventory-movements` |
+
+- **Recetas:** cada publicación es una versión nueva; la anterior queda `SUPERSEDED`. El `If-Match` es la versión del producto.
+- **START** suma la receta vigente y los ajustes de ingredientes de las opciones elegidas, y crea un movimiento `CONSUMPTION` por unidad e ingrediente en la misma transacción. No escribe en el ingrediente: `php artisan restia:inventory`, cada 5 s en el scheduler, aplica los movimientos a `stock` (I-1). `--rebuild` recalcula el stock desde los movimientos.
+- **Sin stock:** `START` responde `INVENTORY_INSUFFICIENT` con los faltantes. Con un token `INVENTORY_OVERRIDE` de un gerente (`POST /approvals`, con el mismo motivo en la transición) sigue y el stock puede quedar negativo. Si el gerente se aprueba a sí mismo, el movimiento queda con `selfApproved`.
+- **Bloqueo alimentario:** frena `START` con `INVENTORY_BLOCKED_FOOD_SAFETY` y ningún token lo salta. Cocina bloquea; solo ADMIN y MANAGER desbloquean.
+- **Ingrediente en uso:** no se desactiva si una receta vigente lo usa (`INGREDIENT_IN_USE`, con los productos).
+- **Stock bajo:** al bajar del mínimo se publica `ingredient.low_stock`; marcar el producto como agotado sigue siendo manual (I-10).
 
 ## Impresión
 

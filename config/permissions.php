@@ -36,6 +36,7 @@ return [
             'inventory.count',
             'inventory.food_safety',
             'inventory.manage',
+            'inventory.override',
             'inventory.read',
             'inventory.receive',
             'inventory.record_waste',
@@ -128,6 +129,7 @@ return [
             'inventory.count',
             'inventory.food_safety',
             'inventory.manage',
+            'inventory.override',
             'inventory.read',
             'inventory.receive',
             'inventory.record_waste',
@@ -240,7 +242,6 @@ return [
             'tables.read',
         ],
         'KITCHEN' => [
-            'inventory.adjust',
             'inventory.count',
             'inventory.food_safety',
             'inventory.read',
