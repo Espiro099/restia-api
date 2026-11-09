@@ -6,6 +6,7 @@ use App\Http\Controllers\DeviceController;
 use App\Http\Controllers\FloorController;
 use App\Http\Controllers\MobileAuthController;
 use App\Http\Controllers\PrintingController;
+use App\Http\Controllers\PrintJobController;
 use App\Http\Controllers\ServiceIdentityController;
 use Illuminate\Support\Facades\Route;
 
@@ -114,6 +115,18 @@ Route::middleware('auth.session')->group(function () {
         Route::get('print-agents/{printAgentId}', 'printAgent')->middleware('branch:printing.manage');
         Route::post('print-agents/{printAgentId}/status', 'printAgentStatus')->middleware('branch:printing.manage');
     });
+
+    // Trabajos de impresión: los ven todos; los automáticos salen de outbox (restia:printing).
+    Route::controller(PrintJobController::class)->prefix('branches/{branchId}/print-jobs')->group(function () {
+        Route::get('/', 'index')->middleware('branch:printing.read');
+        Route::post('/', 'create')->middleware('branch:printing.request');
+        Route::get('{printJobId}', 'show')->middleware('branch:printing.read');
+        Route::get('{printJobId}/attempts', 'attempts')->middleware('branch:printing.read');
+        Route::post('{printJobId}/retry', 'retry')->middleware('branch:printing.resolve');
+        Route::post('{printJobId}/resolve', 'resolve')->middleware('branch:printing.resolve');
+        Route::post('{printJobId}/cancel', 'cancel')->middleware('branch:printing.resolve');
+        Route::post('{printJobId}/reprint', 'reprint')->middleware('branch:printing.reprint');
+    });
 });
 
 // Service Bearer Token (D-36, sección 11): ni la app ni el panel entran aquí, y el agente no entra allá.
@@ -121,4 +134,9 @@ Route::get('service-identities/me', [ServiceIdentityController::class, 'me'])->m
 Route::controller(PrintingController::class)->prefix('print-agent')->middleware('auth.service:PRINTING_AGENT')->group(function () {
     Route::get('config', 'agentConfig');
     Route::post('heartbeat', 'agentHeartbeat');
+});
+Route::controller(PrintJobController::class)->prefix('print-agent')->middleware('auth.service:PRINTING_AGENT')->group(function () {
+    Route::post('jobs/claim', 'claim');
+    Route::post('attempts/{attemptId}/start', 'start');
+    Route::post('attempts/{attemptId}/result', 'result');
 });

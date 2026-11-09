@@ -2,7 +2,7 @@
 
 namespace App\Models;
 
-use MongoDB\Laravel\Eloquent\Casts\ObjectId;
+use App\Models\Casts\ObjectId;
 
 /** Estación alternativa de un producto, por prioridad (M-2, opción A). */
 class ProductPreparationRoute extends Document

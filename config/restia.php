@@ -43,5 +43,15 @@ return [
     ],
     'printing' => [
         'poll_interval_seconds' => 3,
+        // PR-5: plazo de un reclamo; `start` lo renueva.
+        'lease_seconds' => 60,
+        // PR-6: reintentos automáticos solo si el agente confirma que no envió nada.
+        'max_attempts' => 3,
+        'retry_base_seconds' => 5,
+        // PR-9: una comanda sin imprimir tras este tiempo pasa a FAILED. Cada sucursal puede
+        // definir el suyo en `print_ticket_expiry_minutes`.
+        'ticket_expiry_minutes' => 15,
+        // Sin latido por este tiempo se publica print_agent.offline.
+        'agent_offline_seconds' => 120,
     ],
 ];

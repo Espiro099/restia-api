@@ -173,7 +173,7 @@ final class Kitchen
      *
      * @return array<string, list<int>>
      */
-    private static function tableNumbers(ObjectId $branchId, Collection $sessionIds): array
+    public static function tableNumbers(ObjectId $branchId, Collection $sessionIds): array
     {
         $ids = $sessionIds->map(fn ($id) => (string) $id)->unique()->map(fn ($id) => new ObjectId($id))->values()->all();
         $assignments = TableAssignment::query()->where('branch_id', $branchId)->whereIn('session_id', $ids)->get();

@@ -2,8 +2,8 @@
 
 namespace App\Models;
 
+use App\Models\Casts\ObjectId;
 use App\Models\Concerns\HasVersion;
-use MongoDB\Laravel\Eloquent\Casts\ObjectId;
 
 /**
  * Dispositivo Android registrado en una sucursal (D-36, 4.2). BLOCKED y RETIRED son finales:

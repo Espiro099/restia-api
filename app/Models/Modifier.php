@@ -2,8 +2,8 @@
 
 namespace App\Models;
 
+use App\Models\Casts\ObjectId;
 use App\Models\Concerns\HasVersion;
-use MongoDB\Laravel\Eloquent\Casts\ObjectId;
 
 /** Grupo de modificadores con opciones internas (M-3). Las opciones se desactivan, nunca se borran. */
 class Modifier extends Document
