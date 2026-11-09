@@ -149,6 +149,32 @@ Decisiones_Printing y D-36, sección 11. Un agente local consulta trabajos hacia
 - **Reintentos:** `NOT_SENT` reintenta solo, hasta 3 intentos con espera creciente; después queda `FAILED`. `UNKNOWN` nunca se reintenta solo: una persona lo resuelve.
 - **Reimpresión:** trabajo nuevo con el contenido original; el agente lo recibe con la marca `*** REIMPRESIÓN ***`.
 
+### Probar la impresión sin impresora
+
+El agente simulado habla con la API por HTTP, igual que el agente real, y muestra cada documento en la terminal. Con una sucursal cargada con `restia:install` y `restia:demo`:
+
+```bash
+php artisan restia:demo-printing --branch=CENTRO
+```
+
+Crea la identidad de servicio, el agente y una impresora con su ruta de comandas por estación, y muestra el token una sola vez. Después, cada uno en su propia terminal:
+
+```bash
+php artisan serve
+```
+
+```bash
+php artisan schedule:work
+```
+
+```powershell
+$env:RESTIA_AGENT_TOKEN = "<token>"; php artisan restia:print-agent-sim
+```
+
+Para mandar una comanda sin la app, `php artisan restia:demo-order --branch=CENTRO` abre una mesa libre y pide un producto de cada estación (`--table=N` usa una mesa ya abierta). En unos segundos sale en el agente.
+
+Fallas con `--fail`: `not-sent` (la impresora no recibe nada; se reintenta sola hasta 3 veces), `uncertain` (se corta a media impresión; queda `UNKNOWN`), `crash` (el agente se cae sin reportar; queda `UNKNOWN` al vencer el plazo) y `random` (falla con la probabilidad de `--fail-rate`, 0.3 por omisión). `--once` hace una sola vuelta. Ninguno de estos comandos corre en producción.
+
 ## Pruebas del backend
 
 Con el replica set local arrancado:
