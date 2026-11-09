@@ -4,6 +4,7 @@ namespace Tests\Feature\Floor;
 
 use App\Models\Check;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use MongoDB\BSON\ObjectId;
 
 /** Cuentas (Decisiones_Checks): asignación desde la comanda, totales, dividir, solicitar, cortesías y cierre. */
@@ -148,7 +149,7 @@ class ChecksTest extends FloorTestCase
         $session = $this->openSession(2);
         $order = $this->as('mesero', 'POST', 'orders', $this->round($session), $this->key())->json('data');
         [$check] = $this->checks($session);
-        DB::connection('mongodb')->table('payments')->insert(['check_id' => new ObjectId(Check::query()->where('uuid', $check['id'])->first()->getKey()), 'status' => 'CONFIRMED']);
+        DB::connection('mongodb')->table('payments')->insert(['uuid' => (string) Str::uuid(), 'idempotency_key' => (string) Str::uuid(), 'check_id' => new ObjectId(Check::query()->where('uuid', $check['id'])->first()->getKey()), 'status' => 'CONFIRMED']);
         $this->transition('mesero', 'CANCEL', $this->unitsOf($order, 1), 'Ya no')->assertStatus(409)->assertJsonPath('error.code', 'ORDER_UNIT_PAID');
         $split = $this->as('mesero', 'POST', 'checks', ['sessionId' => $session], $this->key())->json('data');
         $this->as('mesero', 'POST', "checks/{$check['id']}/units/move", ['unitIds' => [$this->unitsOf($order, 1)[0]['id']], 'targetCheckId' => $split['id'], 'targetCheckVersion' => $split['version']], $this->v($check))

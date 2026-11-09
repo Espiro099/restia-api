@@ -110,7 +110,7 @@ final class SessionLifecycle
         });
     }
 
-    /** T-4: sin unidades por terminar. Cada mesa queda en limpieza; la sesión se cierra al limpiar la última. */
+    /** T-4: sin unidades por terminar y con las cuentas liquidadas. Cada mesa queda en limpieza; la sesión se cierra al limpiar la última. */
     public static function close(Branch $branch, TableSession $session, User $actor, int $version): TableSession
     {
         return self::change($branch, $session, $actor, $version, function (TableSession $s, ObjectId $branchId, $now) {
@@ -121,8 +121,13 @@ final class SessionLifecycle
             foreach (self::assignments($s)->where('phase', self::SEATED) as $assignment) {
                 self::startCleaning($branchId, $s, $assignment, (int) $s->membership_version);
             }
-            // C-8: las cuentas sin unidades se cancelan y las de total 0 quedan PAID.
+            // C-8: las cuentas sin unidades se cancelan y las de total 0 quedan PAID. T-4: las demás
+            // deben estar pagadas, canceladas o reembolsadas.
             Checks::settleOnClose($branchId, $s);
+            $open = Checks::unsettled($branchId, $s);
+            if ($open) {
+                throw new DomainConflict('SESSION_HAS_OPEN_CHECKS', ['checkIds' => $open]);
+            }
 
             return [['status' => TableSession::PENDING_CLEANING, 'close_requested_at' => $now], 'table_session.close_requested', []];
         });

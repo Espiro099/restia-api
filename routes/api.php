@@ -8,6 +8,7 @@ use App\Http\Controllers\DeviceController;
 use App\Http\Controllers\FloorController;
 use App\Http\Controllers\InventoryController;
 use App\Http\Controllers\MobileAuthController;
+use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\PrintingController;
 use App\Http\Controllers\PrintJobController;
 use App\Http\Controllers\ServiceIdentityController;
@@ -107,6 +108,20 @@ Route::middleware('auth.session')->group(function () {
         Route::post('cash-shifts/{cashShiftId}/start-closing', 'startClosing')->middleware('branch:cash.close');
         Route::post('cash-shifts/{cashShiftId}/cancel-closing', 'cancelClosing')->middleware('branch:cash.close');
         Route::post('cash-shifts/{cashShiftId}/close', 'close')->middleware('branch:cash.close');
+    });
+
+    // Pagos y reembolsos (Decisiones_Payments).
+    Route::controller(PaymentController::class)->prefix('branches/{branchId}')->group(function () {
+        Route::get('payments', 'index')->middleware('branch:payments.read');
+        Route::post('payments', 'create')->middleware('branch:payments.create');
+        Route::get('payments/{paymentId}', 'show')->middleware('branch:payments.read');
+        Route::post('payments/{paymentId}/result', 'result')->middleware('branch:payments.record_result');
+        Route::post('payments/{paymentId}/reconcile', 'reconcile')->middleware('branch:payments.reconcile');
+        Route::post('payments/{paymentId}/refunds', 'createRefund')->middleware('branch:refunds.create');
+        Route::get('refunds', 'refunds')->middleware('branch:refunds.read');
+        Route::get('refunds/{refundId}', 'refund')->middleware('branch:refunds.read');
+        Route::post('refunds/{refundId}/result', 'refundResult')->middleware('branch:refunds.record_result');
+        Route::post('refunds/{refundId}/reconcile', 'refundReconcile')->middleware('branch:refunds.reconcile');
     });
 
     // Cuentas (Decisiones_Checks). Reabrir y dar cortesías admiten un token de aprobación (C-9).

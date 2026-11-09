@@ -5,6 +5,7 @@ namespace Tests\Feature\Floor;
 use App\Cash\Cash;
 use App\Models\CashShift;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Illuminate\Testing\TestResponse;
 use MongoDB\BSON\Decimal128;
 use MongoDB\BSON\ObjectId;
@@ -76,8 +77,8 @@ class CashTest extends FloorTestCase
         $this->as('gerente', 'POST', "$path/movements", ['type' => 'WITHDRAWAL', 'amount' => $this->money('50.50'), 'reason' => 'Pago a proveedor'], $this->key())->assertCreated();
         // Un pago en efectivo con propina (llega con Payments) también entra al esperado.
         $shiftId = new ObjectId(CashShift::query()->where('uuid', $shift['id'])->first()->getKey());
-        DB::connection('mongodb')->table('payments')->insert(['cash_shift_id' => $shiftId, 'status' => 'CONFIRMED', 'method' => 'CASH', 'amount' => new Decimal128('207.00'), 'tip' => new Decimal128('20.00')]);
-        DB::connection('mongodb')->table('payments')->insert(['cash_shift_id' => $shiftId, 'status' => 'CONFIRMED', 'method' => 'CARD_DEBIT', 'amount' => new Decimal128('100.00'), 'tip' => new Decimal128('0')]);
+        DB::connection('mongodb')->table('payments')->insert(['uuid' => (string) Str::uuid(), 'idempotency_key' => (string) Str::uuid(), 'cash_shift_id' => $shiftId, 'status' => 'CONFIRMED', 'method' => 'CASH', 'amount' => new Decimal128('207.00'), 'tip' => new Decimal128('20.00')]);
+        DB::connection('mongodb')->table('payments')->insert(['uuid' => (string) Str::uuid(), 'idempotency_key' => (string) Str::uuid(), 'cash_shift_id' => $shiftId, 'status' => 'CONFIRMED', 'method' => 'CARD_DEBIT', 'amount' => new Decimal128('100.00'), 'tip' => new Decimal128('0')]);
 
         $summary = $this->as('gerente', 'GET', "$path/summary")->assertOk()->json('data');
         // 500 + 200 − 50.50 + 207 + 20 = 876.50; la tarjeta no entra al efectivo.
@@ -96,7 +97,7 @@ class CashTest extends FloorTestCase
         $shift = $this->as('gerente', 'POST', "$path/start-closing", [], $this->v($shift))->assertOk()->json('data');
 
         // Una operación sin resolver bloquea el cierre.
-        DB::connection('mongodb')->table('payments')->insert(['cash_shift_id' => $shiftId, 'status' => 'UNKNOWN', 'method' => 'CARD_CREDIT', 'amount' => new Decimal128('50'), 'tip' => new Decimal128('0')]);
+        DB::connection('mongodb')->table('payments')->insert(['uuid' => (string) Str::uuid(), 'idempotency_key' => (string) Str::uuid(), 'cash_shift_id' => $shiftId, 'status' => 'UNKNOWN', 'method' => 'CARD_CREDIT', 'amount' => new Decimal128('50'), 'tip' => new Decimal128('0')]);
         $this->as('gerente', 'POST', "$path/close", $close, $this->v($shift) + $this->key())->assertStatus(409)
             ->assertJsonPath('error.code', 'CASH_SHIFT_HAS_UNRESOLVED_OPERATIONS')->assertJsonPath('error.details.unknownPayments', 1);
         DB::connection('mongodb')->table('payments')->where('status', 'UNKNOWN')->update(['status' => 'FAILED']);
@@ -111,7 +112,7 @@ class CashTest extends FloorTestCase
         $this->assertSame(1, DB::connection('mongodb')->table('outbox_events')->where('type', 'cash_shift.difference_detected')->count());
 
         // El resumen queda congelado aunque aparezca otro pago.
-        DB::connection('mongodb')->table('payments')->insert(['cash_shift_id' => $shiftId, 'status' => 'CONFIRMED', 'method' => 'CASH', 'amount' => new Decimal128('999'), 'tip' => new Decimal128('0')]);
+        DB::connection('mongodb')->table('payments')->insert(['uuid' => (string) Str::uuid(), 'idempotency_key' => (string) Str::uuid(), 'cash_shift_id' => $shiftId, 'status' => 'CONFIRMED', 'method' => 'CASH', 'amount' => new Decimal128('999'), 'tip' => new Decimal128('0')]);
         $this->as('gerente', 'GET', "$path/summary")->assertJsonPath('data.frozen', true)->assertJsonPath('data.expectedCash.amount', '876.50')->assertJsonPath('data.countedCash.amount', '860.00');
         $this->as('mesero', 'GET', $path)->assertStatus(404);
         $this->as('gerente', 'GET', 'cash-shifts?reviewRequired=true')->assertJsonCount(1, 'data');

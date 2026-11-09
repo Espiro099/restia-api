@@ -41,6 +41,10 @@ return [
         // Al rotar, el token anterior sigue valiendo este tiempo, para desplegar sin cortes.
         'rotation_grace_days' => 7,
     ],
+    // Pagos (Decisiones_Payments): un PENDING sin resultado pasa a UNKNOWN tras este tiempo (P-4).
+    'payments' => [
+        'pending_minutes' => 15,
+    ],
     'printing' => [
         'poll_interval_seconds' => 3,
         // PR-5: plazo de un reclamo; `start` lo renueva.

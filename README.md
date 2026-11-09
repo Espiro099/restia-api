@@ -92,7 +92,6 @@ Pendiente:
 
 - **Con Checks, Payments y Cash:** imprimir precuenta, recibo y reporte de caja; hoy solo se pide `TEST` a mano.
 - **Con Inventory (fase 5):** recepciones y conteos físicos.
-- **Con Payments (fase 5):** cobrar, y que el cierre exija cuentas `PAID` o `CANCELLED` (`SESSION_HAS_OPEN_CHECKS`).
 - **Con Public QR:** el estado `POSIBLE_OCUPACION`.
 
 ## Catálogo y mesas
@@ -121,6 +120,23 @@ Mientras no exista el panel Web para dar de alta el catálogo, `restia:demo` car
 ```bash
 RESTIA_DEMO_PASSWORD='una-clave-de-prueba' php artisan restia:demo --branch=CENTRO --staff
 ```
+
+## Pagos y reembolsos
+
+Decisiones_Payments. El empleado registra el resultado de la terminal (P-1); nunca se guarda número de tarjeta ni CVV, solo marca, últimos 4 y autorización (P-10).
+
+| Operación | Ruta |
+|---|---|
+| Pagos: lista, detalle, cobrar | `GET`, `POST /branches/{branchId}/payments`, `GET .../payments/{paymentId}` |
+| Resultado de la terminal y conciliación | `POST .../payments/{paymentId}/result`, `.../reconcile` |
+| Reembolsos | `POST .../payments/{paymentId}/refunds`, `GET .../refunds`, `GET .../refunds/{refundId}` |
+| Resultado y conciliación de un reembolso | `POST .../refunds/{refundId}/result`, `.../reconcile` |
+
+- **Cobrar:** en un turno `OPEN`. El efectivo se confirma al crear y calcula el cambio con `amountTendered`; tarjeta y transferencia quedan `PENDING` (P-2). La propina va aparte y no entra en el total (P-6).
+- **Saldo reservado:** un pago nuevo solo cabe en `total − pagado − pendiente` (`PAYMENT_EXCEEDS_BALANCE`, P-3). Varios pagos dividen una cuenta.
+- **Estado de la cuenta:** el primer pago la pasa a `REQUESTED`; luego `PARTIALLY_PAID` o `PAID`.
+- **UNKNOWN:** si no se vio el resultado; también un `PENDING` de más de 15 minutos. Bloquea nuevos pagos en esa cuenta (`PAYMENT_REQUIRES_RECONCILIATION`) hasta que un gerente lo concilie con motivo (P-4, P-5).
+- **Reembolso:** del pago completo, con monto y propina, por el mismo método y en un turno abierto (P-7, P-9, CA-7). El efectivo se confirma al crear. Uno activo por pago (`REFUND_ALREADY_EXISTS`); un `FAILED` permite otro. Con todo lo pagado reembolsado, la cuenta queda `REFUNDED` y puede pasar sus unidades a otra cuenta para cobrarlas de nuevo (P-8).
 
 ## Caja
 
@@ -155,8 +171,8 @@ Decisiones_Checks. Cada unidad nueva va a la cuenta `OPEN` más reciente de la s
 - **Mover:** `If-Match` en el origen y `targetCheckVersion` del destino, que debe estar `OPEN` y en la misma sesión. La cortesía viaja con la unidad.
 - **Solicitar:** `REQUESTED` ya no recibe unidades y la mesa pasa a `CUENTA_SOLICITADA`.
 - **Reabrir y cortesías:** ADMIN y MANAGER directo; el mesero con `X-Approval-Token` (`CHECK_REOPEN` ligado a la cuenta, `CHECK_ADJUSTMENT` ligado a la unidad o a la cortesía). Si la cuenta llega a 0 con unidades, queda `PAID`.
-- **Cierre de la sesión:** cancela las cuentas sin unidades que se cobren y deja `PAID` las de total 0. Mientras no exista Payments, el cierre todavía no exige cuentas liquidadas.
-- **Pagos:** las reglas de pagos confirmados o en curso (`ORDER_UNIT_PAID`, `CHECK_HAS_CONFIRMED_PAYMENT`, `CHECK_HAS_OPEN_PAYMENT`) ya consultan la colección `payments`, que llega con Payments.
+- **Cierre de la sesión:** cancela las cuentas sin unidades que se cobren y deja `PAID` las de total 0. Las demás deben estar `PAID`, `CANCELLED` o `REFUNDED` (`SESSION_HAS_OPEN_CHECKS`, T-4).
+- **Pagos:** un pago confirmado congela las unidades de su cuenta (`ORDER_UNIT_PAID`, C-2); uno en curso bloquea mover, reabrir y dar cortesías.
 
 ## Inventario: catálogo y consumo
 
