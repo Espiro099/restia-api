@@ -130,7 +130,7 @@ final class PrintAgents
         }
 
         $now = now();
-        $fields = ['last_seen_at' => $now];
+        $fields = ['last_seen_at' => $now, 'offline_notified' => false];
         if (array_key_exists('agentVersion', $in)) {
             $fields['agent_version'] = $in['agentVersion'];
         }

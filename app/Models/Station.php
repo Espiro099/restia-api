@@ -2,8 +2,8 @@
 
 namespace App\Models;
 
+use App\Models\Casts\ObjectId;
 use App\Models\Concerns\HasVersion;
-use MongoDB\Laravel\Eloquent\Casts\ObjectId;
 
 /** Estación de preparación (M-2: una por unidad). */
 class Station extends Document

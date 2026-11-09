@@ -2,8 +2,8 @@
 
 namespace App\Models;
 
+use App\Models\Casts\ObjectId;
 use App\Models\Concerns\HasVersion;
-use MongoDB\Laravel\Eloquent\Casts\ObjectId;
 
 /** Programa local que imprime (PR-1). Se autentica con una identidad de servicio PRINTING_AGENT. */
 class PrintAgent extends Document

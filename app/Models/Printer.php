@@ -2,8 +2,8 @@
 
 namespace App\Models;
 
+use App\Models\Casts\ObjectId;
 use App\Models\Concerns\HasVersion;
-use MongoDB\Laravel\Eloquent\Casts\ObjectId;
 
 /** Impresora de una sucursal, conectada a un agente (Decisiones_Printing, PR-1). */
 class Printer extends Document

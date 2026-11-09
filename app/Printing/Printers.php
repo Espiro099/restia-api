@@ -7,9 +7,9 @@ use App\Exceptions\DomainConflict;
 use App\Models\Branch;
 use App\Models\PrintAgent;
 use App\Models\Printer;
+use App\Models\PrintJob;
 use App\Models\User;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use MongoDB\BSON\ObjectId;
 
@@ -90,7 +90,7 @@ final class Printers
 
         return Catalog::change($branch, $actor, $p, $version, 'printer.status_changed', 'printer', function (Printer $fresh) use ($status) {
             if ($status === Printer::INACTIVE) {
-                $busy = DB::connection('mongodb')->table('print_jobs')->where('printer_id', new ObjectId($fresh->getKey()))
+                $busy = PrintJob::query()->where('printer_id', new ObjectId($fresh->getKey()))
                     ->whereIn('status', self::BUSY_JOB_STATES)->exists();
                 if ($busy) {
                     throw new DomainConflict('PRINTER_HAS_ACTIVE_JOBS');

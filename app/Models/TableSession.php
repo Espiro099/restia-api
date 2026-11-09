@@ -2,8 +2,8 @@
 
 namespace App\Models;
 
+use App\Models\Casts\ObjectId;
 use App\Models\Concerns\HasVersion;
-use MongoDB\Laravel\Eloquent\Casts\ObjectId;
 
 /** Sesión de mesa (T-1). `activity_epoch` serializa una comanda con el cierre (sección 5 de Orders). */
 class TableSession extends Document

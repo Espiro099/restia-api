@@ -2,7 +2,7 @@
 
 namespace App\Models;
 
-use MongoDB\Laravel\Eloquent\Casts\ObjectId;
+use App\Models\Casts\ObjectId;
 
 /** Mesa dentro de una sesión. `active` sigue en true hasta confirmar la limpieza, para que el índice parcial bloquee la mesa. */
 class TableAssignment extends Document

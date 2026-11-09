@@ -2,8 +2,8 @@
 
 namespace App\Models;
 
+use App\Models\Casts\ObjectId;
 use App\Models\Concerns\HasVersion;
-use MongoDB\Laravel\Eloquent\Casts\ObjectId;
 
 /** Partida de una comanda, con copia de nombre, precio y modificadores (Menu, sección 5). */
 class OrderItem extends Document

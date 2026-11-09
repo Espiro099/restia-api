@@ -2,7 +2,9 @@
 
 namespace Tests\Feature\Printing;
 
+use App\Models\AuthSession;
 use App\Models\Printer;
+use App\Models\PrintStation;
 use App\Models\Station;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Testing\TestResponse;
@@ -129,6 +131,9 @@ class PrintingSetupTest extends FloorTestCase
             ->assertJsonPath('data.stationId', $kitchen)->assertJsonPath('data.printerId', $printer['id'])->json('data');
         $this->as('gerente', 'POST', 'print-stations', ['code' => 'RECIBOS', 'name' => 'Recibos', 'jobTypes' => ['PRE_CHECK', 'PAYMENT_RECEIPT'], 'printerId' => $usb['id']])
             ->assertCreated()->assertJsonPath('data.stationId', null);
+        // Una referencia vacía se guarda como null, no como un ObjectId inventado.
+        $this->assertNull(PrintStation::query()->where('code', 'RECIBOS')->first()->getAttributes()['station_id']);
+        $this->assertNull(AuthSession::query()->first()->getAttributes()['revoked_by']);
         $this->as('cocina', 'GET', 'print-stations?status=ACTIVE')->assertOk()->assertJsonCount(2, 'data');
 
         $this->as('gerente', 'POST', "printers/{$usb['id']}/status", ['status' => 'INACTIVE', 'reason' => 'Sin papel'], ['If-Match' => '"2"'])->assertOk();

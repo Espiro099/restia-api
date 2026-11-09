@@ -2,8 +2,8 @@
 
 namespace App\Models;
 
+use App\Models\Casts\ObjectId;
 use App\Models\Concerns\HasVersion;
-use MongoDB\Laravel\Eloquent\Casts\ObjectId;
 
 /** Unidad de una partida: cada platillo tiene su estado (sección 3 de Orders). */
 class OrderItemUnit extends Document
