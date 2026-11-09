@@ -2,6 +2,7 @@
 
 namespace App\Floor;
 
+use App\Checks\Checks;
 use App\Exceptions\DomainConflict;
 use App\Models\Branch;
 use App\Models\Order;
@@ -120,6 +121,8 @@ final class SessionLifecycle
             foreach (self::assignments($s)->where('phase', self::SEATED) as $assignment) {
                 self::startCleaning($branchId, $s, $assignment, (int) $s->membership_version);
             }
+            // C-8: las cuentas sin unidades se cancelan y las de total 0 quedan PAID.
+            Checks::settleOnClose($branchId, $s);
 
             return [['status' => TableSession::PENDING_CLEANING, 'close_requested_at' => $now], 'table_session.close_requested', []];
         });
@@ -136,6 +139,7 @@ final class SessionLifecycle
             }
             TableAssignment::query()->where('session_id', new ObjectId($s->getKey()))->where('active', true)
                 ->update(['active' => false, 'closed_at' => $now]);
+            Checks::settleOnClose($branchId, $s);
 
             return [['status' => TableSession::CANCELLED, 'cancel_reason' => $reason, 'closed_at' => $now], 'table_session.cancelled', []];
         });

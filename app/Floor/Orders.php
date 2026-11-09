@@ -2,6 +2,7 @@
 
 namespace App\Floor;
 
+use App\Checks\Checks;
 use App\Exceptions\DomainConflict;
 use App\Models\Branch;
 use App\Models\Modifier;
@@ -27,8 +28,8 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 /**
  * Comandas (O-1, O-2, O-7). Cada ronda es una comanda nueva con unidades PENDING.
  *
- * Pendiente para Checks (fase 5): asignar las unidades a la cuenta OPEN de la sesión (O-7, D-17).
- * Mientras no haya cuentas, `targetCheckId` responde CHECK_INVALID_STATE porque ninguna está OPEN.
+ * Las unidades nuevas se asignan a la cuenta OPEN más reciente de la sesión, o a `targetCheckId`, o a
+ * una cuenta nueva si no hay ninguna OPEN (C-4, D-17).
  */
 final class Orders
 {
@@ -71,10 +72,6 @@ final class Orders
 
             return [201, self::presentMany($branch, collect([$existing]))[0], $existing->uuid];
         }
-        if (isset($in['targetCheckId'])) {
-            throw new DomainConflict('CHECK_INVALID_STATE');
-        }
-
         $lines = self::lines($branchId, $in['items']);
         $now = now();
         $total = '0';
@@ -94,6 +91,7 @@ final class Orders
             'request_hash' => $content,
         ]);
         $orderId = new ObjectId($order->getKey());
+        $unitIds = [];
         foreach ($lines as $line) {
             $item = OrderItem::query()->create([
                 'branch_id' => $branchId,
@@ -107,7 +105,7 @@ final class Orders
                 'notes' => $line['notes'],
             ]);
             for ($n = 1; $n <= $line['quantity']; $n++) {
-                OrderItemUnit::query()->create([
+                $unitIds[] = OrderItemUnit::query()->create([
                     'branch_id' => $branchId,
                     'order_id' => $orderId,
                     'order_item_id' => new ObjectId($item->getKey()),
@@ -119,6 +117,9 @@ final class Orders
                 ]);
             }
         }
+
+        // Las unidades nuevas van a una cuenta OPEN de la sesión (C-4, D-17).
+        Checks::assign($branchId, $session, $in['targetCheckId'] ?? null, array_map(fn ($u) => new ObjectId($u->getKey()), $unitIds), $actorId);
 
         Audit::record('order.created', 'order', $orderId, $branchId, $actorId, changes: [
             'session' => $session->uuid,

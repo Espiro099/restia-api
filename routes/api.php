@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AccountController;
 use App\Http\Controllers\CatalogController;
+use App\Http\Controllers\CheckController;
 use App\Http\Controllers\DeviceController;
 use App\Http\Controllers\FloorController;
 use App\Http\Controllers\InventoryController;
@@ -86,6 +87,19 @@ Route::middleware('auth.session')->group(function () {
         Route::post('products/{productId}/status', 'productStatus')->middleware('branch:menu.manage');
         Route::post('products/{productId}/availability', 'productAvailability')->middleware('branch:menu.set_availability');
         Route::put('products/{productId}/routes', 'productRoutes')->middleware('branch:menu.manage');
+    });
+
+    // Cuentas (Decisiones_Checks). Reabrir y dar cortesías admiten un token de aprobación (C-9).
+    Route::controller(CheckController::class)->prefix('branches/{branchId}/checks')->group(function () {
+        Route::get('/', 'index')->middleware('branch:checks.read');
+        Route::post('/', 'create')->middleware('branch:checks.create');
+        Route::get('{checkId}', 'show')->middleware('branch:checks.read');
+        Route::post('{checkId}/units/move', 'moveUnits')->middleware('branch:checks.move_units');
+        Route::post('{checkId}/request', 'request')->middleware('branch:checks.request');
+        Route::post('{checkId}/reopen', 'reopen')->middleware('branch:checks.read');
+        Route::post('{checkId}/cancel', 'cancel')->middleware('branch:checks.cancel');
+        Route::post('{checkId}/adjustments', 'adjust')->middleware('branch:checks.read');
+        Route::post('{checkId}/adjustments/{adjustmentId}/revert', 'revert')->middleware('branch:checks.read');
     });
 
     // Catálogo de Inventory: ingredientes, recetas y movimientos. START consume desde las transiciones.

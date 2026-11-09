@@ -195,12 +195,10 @@ return [
         'WAITER' => [
             'cash.read',
             'cash.read_open',
-            'checks.adjust',
             'checks.cancel',
             'checks.create',
             'checks.move_units',
             'checks.read',
-            'checks.reopen',
             'checks.request',
             'customers.create',
             'customers.read',
