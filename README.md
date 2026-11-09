@@ -92,7 +92,7 @@ Pendiente:
 
 - **Con Checks, Payments y Cash:** imprimir precuenta, recibo y reporte de caja; hoy solo se pide `TEST` a mano.
 - **Con Inventory (fase 5):** recepciones y conteos físicos.
-- **Con Checks (fase 5):** asignar unidades a cuentas, `ORDER_UNIT_PAID` y `CUENTA_SOLICITADA`.
+- **Con Payments (fase 5):** cobrar, y que el cierre exija cuentas `PAID` o `CANCELLED` (`SESSION_HAS_OPEN_CHECKS`).
 - **Con Public QR:** el estado `POSIBLE_OCUPACION`.
 
 ## Catálogo y mesas
@@ -121,6 +121,25 @@ Mientras no exista el panel Web para dar de alta el catálogo, `restia:demo` car
 ```bash
 RESTIA_DEMO_PASSWORD='una-clave-de-prueba' php artisan restia:demo --branch=CENTRO --staff
 ```
+
+## Cuentas
+
+Decisiones_Checks. Cada unidad nueva va a la cuenta `OPEN` más reciente de la sesión, a `targetCheckId` si se indica, o a una cuenta nueva si no hay ninguna `OPEN`.
+
+| Operación | Ruta |
+|---|---|
+| Lista y detalle | `GET /branches/{branchId}/checks`, `GET .../checks/{checkId}` |
+| Cuenta vacía, para dividir | `POST .../checks` |
+| Mover unidades a otra cuenta de la sesión | `POST .../checks/{checkId}/units/move` |
+| Solicitar, reabrir, cancelar | `POST .../{checkId}/request`, `.../reopen`, `.../cancel` |
+| Cortesía y su reversión | `POST .../{checkId}/adjustments`, `.../adjustments/{adjustmentId}/revert` |
+
+- **Totales:** se recalculan en cada cambio. El precio incluye IVA; la base y el impuesto se calculan por unidad, con redondeo a 2 decimales. Las unidades canceladas o anuladas no se cobran.
+- **Mover:** `If-Match` en el origen y `targetCheckVersion` del destino, que debe estar `OPEN` y en la misma sesión. La cortesía viaja con la unidad.
+- **Solicitar:** `REQUESTED` ya no recibe unidades y la mesa pasa a `CUENTA_SOLICITADA`.
+- **Reabrir y cortesías:** ADMIN y MANAGER directo; el mesero con `X-Approval-Token` (`CHECK_REOPEN` ligado a la cuenta, `CHECK_ADJUSTMENT` ligado a la unidad o a la cortesía). Si la cuenta llega a 0 con unidades, queda `PAID`.
+- **Cierre de la sesión:** cancela las cuentas sin unidades que se cobren y deja `PAID` las de total 0. Mientras no exista Payments, el cierre todavía no exige cuentas liquidadas.
+- **Pagos:** las reglas de pagos confirmados o en curso (`ORDER_UNIT_PAID`, `CHECK_HAS_CONFIRMED_PAYMENT`, `CHECK_HAS_OPEN_PAYMENT`) ya consultan la colección `payments`, que llega con Payments.
 
 ## Inventario: catálogo y consumo
 

@@ -3,6 +3,7 @@
 namespace App\Floor;
 
 use App\Models\Branch;
+use App\Models\Check;
 use App\Models\Order;
 use App\Models\OrderItemUnit;
 use App\Models\RestaurantTable;
@@ -14,8 +15,8 @@ use MongoDB\BSON\ObjectId;
 /**
  * Mesas con su estado operativo derivado (T-5, sección 3), calculado en cada lectura.
  *
- * Aún no aplican dos reglas: POSIBLE_OCUPACION necesita las señales de presencia de Public QR, y
- * CUENTA_SOLICITADA necesita Checks (fase 5). Hasta entonces, una mesa sin asignación es LIBRE.
+ * Aún no aplica POSIBLE_OCUPACION, que necesita las señales de presencia de Public QR: hasta entonces,
+ * una mesa sin asignación es LIBRE.
  */
 final class Tables
 {
@@ -35,8 +36,11 @@ final class Tables
         $sessionIds = $assignments->pluck('session_id')->map(fn ($id) => (string) $id)->unique()->values();
         $sessions = TableSession::query()->whereIn('_id', $sessionIds->map(fn ($id) => new ObjectId($id))->all())->get()->keyBy(fn ($s) => (string) $s->getKey());
         $activity = self::activity($branchId, $sessionIds->all());
+        // Regla 5: alguna cuenta en REQUESTED o PARTIALLY_PAID.
+        $requested = Check::query()->where('branch_id', $branchId)->whereIn('session_id', $sessionIds->map(fn ($id) => new ObjectId($id))->all())
+            ->whereIn('status', [Check::REQUESTED, Check::PARTIALLY_PAID])->get(['session_id'])->map(fn ($c) => (string) $c->session_id)->unique()->all();
 
-        return $tables->map(function (RestaurantTable $t) use ($branch, $assignments, $sessions, $activity) {
+        return $tables->map(function (RestaurantTable $t) use ($branch, $assignments, $sessions, $activity, $requested) {
             $a = $assignments->get((string) $t->getKey());
             $sessionId = $a ? (string) $a->session_id : null;
 
@@ -47,7 +51,7 @@ final class Tables
                 'capacity' => (int) $t->capacity,
                 'zone' => $t->zone,
                 'status' => $t->status,
-                'operationalState' => self::state($t, $a, $activity[$sessionId] ?? []),
+                'operationalState' => self::state($t, $a, $activity[$sessionId] ?? [], in_array($sessionId, $requested, true)),
                 'currentSessionId' => $sessionId ? $sessions->get($sessionId)?->uuid : null,
                 'version' => (int) $t->version,
                 'combinationGroup' => $t->combination_group,
@@ -56,12 +60,13 @@ final class Tables
     }
 
     /** Primera regla que coincide, en el orden de T-5. */
-    private static function state(RestaurantTable $t, ?TableAssignment $a, array $units): ?string
+    private static function state(RestaurantTable $t, ?TableAssignment $a, array $units, bool $checkRequested): ?string
     {
         return match (true) {
             $t->status !== RestaurantTable::ACTIVE => null,
             $a?->phase === 'CLEANING' => 'POR_LIMPIAR',
             $a === null => 'LIBRE',
+            $checkRequested => 'CUENTA_SOLICITADA',
             (bool) array_intersect($units, self::ACTIVE_UNIT_STATES) => 'ESPERANDO_COMIDA',
             in_array(OrderItemUnit::DELIVERED, $units, true) => 'CONSUMIENDO',
             default => 'OCUPADA_SIN_COMANDA',

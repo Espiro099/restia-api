@@ -2,6 +2,7 @@
 
 namespace App\Floor;
 
+use App\Checks\Checks;
 use App\Exceptions\DomainConflict;
 use App\Inventory\Consumption;
 use App\Models\Branch;
@@ -19,7 +20,8 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 /**
  * Cambios de estado por lote (O-5): hasta 50 unidades, todo o nada, con la versión de cada una.
  *
- * START consume inventario según la receta vigente (O-6, I-1). Pendiente: ORDER_UNIT_PAID llega con Checks.
+ * START consume inventario según la receta vigente (O-6, I-1). CANCEL y VOID recalculan la cuenta y
+ * respetan ORDER_UNIT_PAID (C-2).
  */
 final class UnitTransitions
 {
@@ -68,6 +70,13 @@ final class UnitTransitions
                 throw new DomainConflict('VERSION_CONFLICT', ['unitIds' => $stale]);
             }
 
+            // C-2: una unidad de una cuenta con pago confirmado ya no se cancela ni anula.
+            if (in_array($in['action'], ['CANCEL', 'VOID'], true)) {
+                $paid = Checks::paidUnits($units->map(fn ($u) => new ObjectId($u->getKey()))->values()->all());
+                if ($paid) {
+                    throw new DomainConflict('ORDER_UNIT_PAID', ['unitIds' => $units->filter(fn ($u) => in_array((string) $u->getKey(), array_map('strval', $paid), true))->keys()->values()->all()]);
+                }
+            }
             $approvedBy = $withApproval ? Approvals::consume($branchId, $approvalToken, 'ORDER_UNIT_VOID', $requested->keys()->all(), $reason) : null;
             // START consume inventario (O-6, I-1); un faltante se salta con un token INVENTORY_OVERRIDE.
             $consumption = $in['action'] === 'START' ? Consumption::plan($branchId, $units) : null;
@@ -94,6 +103,10 @@ final class UnitTransitions
                 Outbox::publish($action['event'], 'order_unit', $u->getKey(), $branchId, ['unitId' => $u->uuid]);
             }
 
+            // Lo cancelado o anulado deja de cobrarse (C-6).
+            if (in_array($in['action'], ['CANCEL', 'VOID'], true)) {
+                Checks::unitsChanged($units->map(fn ($u) => new ObjectId($u->getKey()))->values()->all());
+            }
             if ($consumption) {
                 Consumption::record($branchId, $consumption, $units, $actorId, $overrideBy, $reason);
             }
