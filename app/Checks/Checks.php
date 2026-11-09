@@ -12,6 +12,8 @@ use App\Models\CheckAllocation;
 use App\Models\Membership;
 use App\Models\Order;
 use App\Models\OrderItemUnit;
+use App\Models\Payment;
+use App\Models\Refund;
 use App\Models\TableSession;
 use App\Models\User;
 use App\Support\Audit;
@@ -20,7 +22,6 @@ use App\Support\Idempotency;
 use App\Support\Mongo;
 use App\Support\Outbox;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use MongoDB\BSON\ObjectId;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
@@ -162,6 +163,63 @@ final class Checks
     }
 
     /**
+     * Saldo y estado de la cuenta después de un cambio en sus pagos o reembolsos (P-3, P-8), en la
+     * transacción de ese cambio. `pending_total` reserva el saldo de los pagos en curso, así que un pago
+     * nuevo nunca deja la cuenta pagada de más. Con lo pagado reembolsado por completo queda REFUNDED.
+     */
+    public static function settle(Check $check, bool $starting = false): Check
+    {
+        $fresh = Check::query()->find($check->getKey());
+        $checkId = new ObjectId($fresh->getKey());
+        $sum = fn ($rows, string $field) => $rows->reduce(fn ($carry, $r) => bcadd($carry, (string) $r->$field, 2), '0');
+        $payments = Payment::query()->where('check_id', $checkId)->get(['status', 'amount', 'tip']);
+        $confirmed = $payments->where('status', 'CONFIRMED');
+        $paid = $sum($confirmed, 'amount');
+        $refunded = $sum(Refund::query()->where('check_id', $checkId)->where('status', 'CONFIRMED')->get(['amount']), 'amount');
+        [$totals] = Totals::compute($fresh);
+        $balance = bcsub((string) $totals['total'], $paid, 2);
+        $status = $fresh->status;
+        // C-3: OPEN siempre significa sin pagos; el primero la pasa a REQUESTED.
+        if ($starting && $status === Check::OPEN) {
+            $status = Check::REQUESTED;
+        }
+        if (bccomp($paid, '0', 2) > 0) {
+            $status = match (true) {
+                bccomp($refunded, $paid, 2) >= 0 => Check::REFUNDED,
+                bccomp($balance, '0', 2) <= 0 => Check::PAID,
+                default => Check::PARTIALLY_PAID,
+            };
+        }
+        $changes = [
+            'paid_total' => Floor::decimal($paid),
+            'pending_total' => Floor::decimal($sum($payments->whereIn('status', self::OPEN_PAYMENT_STATES), 'amount')),
+            'tip_total' => Floor::decimal($sum($confirmed, 'tip')),
+            'refunded_total' => Floor::decimal($refunded),
+            'balance' => Floor::decimal($balance),
+            'status' => $status,
+        ];
+        if ($status === Check::PAID && $fresh->status !== Check::PAID) {
+            $changes['paid_at'] = now();
+        }
+        if ($status === Check::REQUESTED && $fresh->requested_at === null) {
+            $changes['requested_at'] = now();
+        }
+        self::save($fresh, (int) $fresh->version, $changes);
+        if ($status !== $fresh->status) {
+            Audit::record('check.'.strtolower($status), 'check', $fresh->getKey(), (string) $fresh->branch_id, changes: ['before' => ['status' => $fresh->status], 'after' => ['status' => $status]]);
+            Outbox::publish('check.'.strtolower($status), 'check', $fresh->getKey(), (string) $fresh->branch_id, ['checkId' => $fresh->uuid]);
+        }
+
+        return $fresh->refresh();
+    }
+
+    /** Lo disponible para un pago nuevo: total − pagado − reservado por pagos en curso (P-3). */
+    public static function available(Check $check): string
+    {
+        return bcsub(bcsub((string) $check->total, (string) $check->paid_total, 2), (string) $check->pending_total, 2);
+    }
+
+    /**
      * C-2: un pago confirmado congela todas las unidades de su cuenta, que ya no se cancelan ni anulan.
      *
      * @param  list<ObjectId>  $unitIds
@@ -192,6 +250,17 @@ final class Checks
                 self::system($check, ['status' => Check::PAID, 'paid_at' => now()], 'check.paid', 'Total en cero al cerrar la sesión.');
             }
         }
+    }
+
+    /**
+     * Cuentas de la sesión que impiden cerrarla (T-4): las que no están PAID, CANCELLED ni REFUNDED.
+     *
+     * @return list<string>
+     */
+    public static function unsettled(ObjectId $branchId, TableSession $session): array
+    {
+        return Check::query()->where('branch_id', $branchId)->where('session_id', new ObjectId($session->getKey()))
+            ->whereNotIn('status', [Check::PAID, Check::CANCELLED, Check::REFUNDED])->pluck('uuid')->values()->all();
     }
 
     // ---------------------------------------------------------------- Operaciones de la cuenta
@@ -372,7 +441,7 @@ final class Checks
     private static function save(Check $check, int $expected, array $changes, bool $zeroPays = false): void
     {
         [$totals, $billed] = Totals::compute($check);
-        $changes = $totals + $changes;
+        $changes = array_merge($totals, $changes);
         if ($zeroPays && $billed > 0 && bccomp((string) $totals['balance'], '0', 2) === 0) {
             $changes += ['status' => Check::PAID, 'paid_at' => now()];
         }
@@ -477,7 +546,14 @@ final class Checks
             return [];
         }
 
-        return DB::connection('mongodb')->table('payments')->whereIn('check_id', $checkIds)->whereIn('status', $states)->get(['check_id'])
-            ->map(fn ($p) => (string) ((array) $p)['check_id'])->unique()->values()->all();
+        $payments = Payment::query()->whereIn('check_id', $checkIds)->whereIn('status', $states)->get(['_id', 'check_id']);
+        if (in_array('CONFIRMED', $states, true)) {
+            // Un pago ya reembolsado deja de estar vigente: su cuenta REFUNDED puede mover unidades (P-8).
+            $refunded = Refund::query()->whereIn('payment_id', $payments->map(fn ($p) => new ObjectId($p->getKey()))->all())
+                ->where('status', 'CONFIRMED')->get(['payment_id'])->map(fn ($r) => (string) $r->payment_id)->all();
+            $payments = $payments->reject(fn ($p) => in_array((string) $p->getKey(), $refunded, true));
+        }
+
+        return $payments->map(fn ($p) => (string) $p->check_id)->unique()->values()->all();
     }
 }
