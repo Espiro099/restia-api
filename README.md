@@ -122,6 +122,23 @@ Mientras no exista el panel Web para dar de alta el catálogo, `restia:demo` car
 RESTIA_DEMO_PASSWORD='una-clave-de-prueba' php artisan restia:demo --branch=CENTRO --staff
 ```
 
+## Caja
+
+Decisiones_Cash. El turno es de la caja, no de una persona (CA-2), y solo gerentes la operan; el mesero ve los turnos abiertos sin montos, para saber dónde cobrar (CA-13).
+
+| Operación | Ruta |
+|---|---|
+| Cajas | `GET`, `POST /branches/{branchId}/cash-registers`, `GET`, `PATCH .../{cashRegisterId}`, `POST .../{cashRegisterId}/status` |
+| Turnos: lista, detalle, abrir | `GET`, `POST .../cash-shifts`, `GET .../cash-shifts/{cashShiftId}` |
+| Resumen y movimientos | `GET .../{cashShiftId}/summary`, `GET`, `POST .../{cashShiftId}/movements` |
+| Cierre en dos pasos | `POST .../{cashShiftId}/start-closing`, `.../cancel-closing`, `.../close` |
+
+- **Abrir:** un turno activo por caja. Si el fondo difiere de lo que dejó el turno anterior, exige `openingDifferenceReason` (CA-9).
+- **Movimientos:** `DEPOSIT` y `WITHDRAWAL`, inmutables y con motivo, solo en `OPEN` (CA-5).
+- **Esperado:** fondo + efectivo cobrado con propina + depósitos − retiros − efectivo devuelto con propina (CA-6). Tarjeta y transferencia se reportan por método.
+- **Cerrar:** `CLOSING` frena operaciones nuevas y se puede cancelar. `close` exige que no haya pagos ni reembolsos `PENDING` o `UNKNOWN`. Toda diferencia pide motivo; si supera la tolerancia de la caja, el turno queda con `reviewRequired` y se publica `cash_shift.difference_detected` (CA-8). El resumen queda congelado (CA-10).
+- **Turno olvidado:** a las 24 horas se publica `cash_shift.forgotten`; no se cierra solo (CA-11).
+
 ## Cuentas
 
 Decisiones_Checks. Cada unidad nueva va a la cuenta `OPEN` más reciente de la sesión, a `targetCheckId` si se indica, o a una cuenta nueva si no hay ninguna `OPEN`.

@@ -17,6 +17,28 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 /** Lista, búsqueda, respuesta con ETag y cuerpos comunes de los recursos que se administran por sucursal. */
 trait BranchResources
 {
+    // Hasta dos decimales con contenido: la moneda de la sucursal no tiene fracciones menores al centavo.
+    private const AMOUNT = 'regex:/^\d{1,12}(\.\d{1,2}0{0,2})?$/';
+
+    /**
+     * Reglas de un Money del contrato, en la moneda de la sucursal. Con $positive, mayor que 0.
+     *
+     * @return array<string, mixed>
+     */
+    protected function money(string $field, bool $required, bool $signed = false, bool $positive = false): array
+    {
+        $amount = ['string', $signed ? 'regex:/^-?\d{1,12}(\.\d{1,2}0{0,2})?$/' : self::AMOUNT];
+        if ($positive) {
+            $amount[] = 'not_regex:/^0+(\.0+)?$/';
+        }
+
+        return [
+            $field => [$required ? 'required' : 'sometimes', 'array:amount,currency'],
+            "$field.amount" => [$required ? 'required' : "required_with:$field", ...$amount],
+            "$field.currency" => [$required ? 'required' : "required_with:$field", 'string', Rule::in([Floor::CURRENCY])],
+        ];
+    }
+
     /**
      * @param  class-string<Document>  $model
      * @param  list<string>  $order

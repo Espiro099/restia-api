@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AccountController;
+use App\Http\Controllers\CashController;
 use App\Http\Controllers\CatalogController;
 use App\Http\Controllers\CheckController;
 use App\Http\Controllers\DeviceController;
@@ -87,6 +88,25 @@ Route::middleware('auth.session')->group(function () {
         Route::post('products/{productId}/status', 'productStatus')->middleware('branch:menu.manage');
         Route::post('products/{productId}/availability', 'productAvailability')->middleware('branch:menu.set_availability');
         Route::put('products/{productId}/routes', 'productRoutes')->middleware('branch:menu.manage');
+    });
+
+    // Caja (Decisiones_Cash). Las lecturas deciden los montos según cash.read o cash.read_open (CA-13).
+    Route::controller(CashController::class)->prefix('branches/{branchId}')->group(function () {
+        Route::get('cash-registers', 'registers')->middleware('branch');
+        Route::post('cash-registers', 'createRegister')->middleware('branch:cash.manage_registers');
+        Route::get('cash-registers/{cashRegisterId}', 'register')->middleware('branch');
+        Route::patch('cash-registers/{cashRegisterId}', 'updateRegister')->middleware('branch:cash.manage_registers');
+        Route::post('cash-registers/{cashRegisterId}/status', 'registerStatus')->middleware('branch:cash.manage_registers');
+
+        Route::get('cash-shifts', 'shifts')->middleware('branch');
+        Route::post('cash-shifts', 'open')->middleware('branch:cash.open');
+        Route::get('cash-shifts/{cashShiftId}', 'shift')->middleware('branch');
+        Route::get('cash-shifts/{cashShiftId}/summary', 'summary')->middleware('branch:cash.read');
+        Route::get('cash-shifts/{cashShiftId}/movements', 'movements')->middleware('branch:cash.read');
+        Route::post('cash-shifts/{cashShiftId}/movements', 'createMovement')->middleware('branch:cash.move');
+        Route::post('cash-shifts/{cashShiftId}/start-closing', 'startClosing')->middleware('branch:cash.close');
+        Route::post('cash-shifts/{cashShiftId}/cancel-closing', 'cancelClosing')->middleware('branch:cash.close');
+        Route::post('cash-shifts/{cashShiftId}/close', 'close')->middleware('branch:cash.close');
     });
 
     // Cuentas (Decisiones_Checks). Reabrir y dar cortesías admiten un token de aprobación (C-9).
