@@ -217,7 +217,6 @@ return [
             'payments.create',
             'payments.read',
             'payments.record_result',
-            'printing.manage',
             'printing.read',
             'printing.reprint',
             'printing.request',

@@ -90,7 +90,7 @@ Los cambios a una sesión ya abierta piden `If-Match` con su `version` y respond
 
 Pendiente:
 
-- **Siguiente parte de la fase 4:** impresión.
+- **Con Checks, Payments y Cash:** imprimir precuenta, recibo y reporte de caja; hoy solo se pide `TEST` a mano.
 - **Con Inventory:** consumo de inventario en `START`.
 - **Con Checks (fase 5):** asignar unidades a cuentas, `ORDER_UNIT_PAID` y `CUENTA_SOLICITADA`.
 - **Con Public QR:** el estado `POSIBLE_OCUPACION`.
@@ -121,6 +121,33 @@ Mientras no exista el panel Web para dar de alta el catálogo, `restia:demo` car
 ```bash
 RESTIA_DEMO_PASSWORD='una-clave-de-prueba' php artisan restia:demo --branch=CENTRO --staff
 ```
+
+## Impresión
+
+Decisiones_Printing y D-36, sección 11. Un agente local consulta trabajos hacia afuera, sin puertos abiertos.
+
+| Operación | Ruta |
+|---|---|
+| Identidades de servicio: lista, alta, sucursales, rotar, revocar | `GET`, `POST /service-identities`, `PATCH .../{serviceIdentityId}`, `POST .../rotate`, `POST .../revoke` |
+| La identidad del token (ServiceAuth) | `GET /service-identities/me` |
+| Impresoras | `GET`, `POST /branches/{branchId}/printers`, `GET`, `PATCH .../printers/{printerId}`, `POST .../{printerId}/status` |
+| Rutas de impresión | `GET`, `POST .../print-stations`, `GET`, `PATCH .../print-stations/{printStationId}`, `POST .../{printStationId}/status` |
+| Agentes | `GET`, `POST .../print-agents`, `GET .../print-agents/{printAgentId}`, `POST .../{printAgentId}/status` |
+| Configuración y latido del agente (ServiceAuth) | `GET /print-agent/config`, `POST /print-agent/heartbeat` |
+| Trabajos: lista, detalle, intentos, pedir uno | `GET`, `POST .../print-jobs`, `GET .../print-jobs/{printJobId}`, `GET .../attempts` |
+| Trabajos: reintentar, resolver, cancelar, reimprimir | `POST .../print-jobs/{printJobId}/retry`, `.../resolve`, `.../cancel`, `.../reprint` |
+| Reclamar, empezar y reportar (ServiceAuth) | `POST /print-agent/jobs/claim`, `POST /print-agent/attempts/{attemptId}/start`, `.../result` |
+
+- **Token de servicio:** empieza con `rsv_`, se muestra una sola vez y solo se guarda su SHA-256. Dura 90 días; al rotar, el anterior vale 7 días más. Revocar corta los dos de inmediato.
+- **Quién administra identidades:** quien tiene `service_identities.manage` (ADMIN) en alguna sucursal. Solo ve las identidades que comparten una sucursal con él, y solo agrega o quita sucursales que administra.
+- **Agente:** una identidad `PRINTING_AGENT` autorizada para la sucursal; una identidad admite un solo agente. Si el agente se desactiva, o su sucursal sale de la identidad, sus rutas responden 403.
+- **Latido:** guarda `lastSeenAt`, la versión del agente y si cada impresora está en línea, sin subir `version`, para no romper el `If-Match` del panel.
+- **Impresoras:** `NETWORK` lleva `host` y `port` (9100 por omisión); `USB`, el nombre local. No se desactivan con trabajos `CLAIMED` o `PRINTING` (`PRINTER_HAS_ACTIVE_JOBS`).
+- **Rutas:** `KITCHEN_TICKET` y `VOID_NOTICE` necesitan una estación de producción. Una impresora inactiva no recibe rutas (`PRINTER_INACTIVE`).
+- **Trabajos automáticos:** `php artisan restia:printing` lee outbox y crea una comanda por cada ruta activa de cada estación con `order.created`, y un aviso con `order_unit.voided`. Si todo lo de una estación se cancela antes de imprimir, su comanda pendiente se cancela. Sin ruta, publica `print_job.route_missing`; la comanda nunca se bloquea.
+- **Plazos:** el mismo comando devuelve a `PENDING` un reclamo vencido en `CLAIMED`, deja en `UNKNOWN` uno vencido en `PRINTING`, pasa a `FAILED` una comanda sin imprimir tras 15 min (`PRINT_JOB_EXPIRED`) y publica `print_agent.offline` tras 2 min sin latido. El scheduler lo corre cada 5 s: en local, `php artisan schedule:work`.
+- **Reintentos:** `NOT_SENT` reintenta solo, hasta 3 intentos con espera creciente; después queda `FAILED`. `UNKNOWN` nunca se reintenta solo: una persona lo resuelve.
+- **Reimpresión:** trabajo nuevo con el contenido original; el agente lo recibe con la marca `*** REIMPRESIÓN ***`.
 
 ## Pruebas del backend
 

@@ -2,8 +2,8 @@
 
 namespace App\Models;
 
+use App\Models\Casts\ObjectId;
 use App\Models\Concerns\HasVersion;
-use MongoDB\Laravel\Eloquent\Casts\ObjectId;
 
 /** Acceso de un usuario a una sucursal con un rol (D-12, U-3). Una baja la deja REVOKED (U-5). */
 class Membership extends Document

@@ -2,7 +2,7 @@
 
 namespace App\Models;
 
-use MongoDB\Laravel\Eloquent\Casts\ObjectId;
+use App\Models\Casts\ObjectId;
 
 /** Limpieza pendiente o confirmada de una mesa, ligada a la versión de membresía de la sesión (T-2). */
 class TableCleaningConfirmation extends Document

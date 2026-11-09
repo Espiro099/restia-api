@@ -2,7 +2,7 @@
 
 namespace App\Models;
 
-use MongoDB\Laravel\Eloquent\Casts\ObjectId;
+use App\Models\Casts\ObjectId;
 
 /** Código de alta de un solo uso, 15 minutos (D-36, 4.3). Solo se guarda su hash. */
 class DeviceEnrollmentCode extends Document
