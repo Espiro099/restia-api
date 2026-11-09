@@ -6,13 +6,17 @@ use App\Exceptions\DomainConflict;
 use App\Http\Controllers\Concerns\BranchResources;
 use App\Http\Middleware\AuthorizeBranch;
 use App\Identity\MobileAuth;
+use App\Inventory\Counts;
 use App\Inventory\Ingredients;
 use App\Inventory\Movements;
 use App\Inventory\Quantity;
+use App\Inventory\Receipts;
 use App\Inventory\Recipes;
 use App\Models\Branch;
 use App\Models\Ingredient;
+use App\Models\InventoryCount;
 use App\Models\InventoryMovement;
+use App\Models\InventoryReceipt;
 use App\Models\Product;
 use App\Models\Recipe;
 use App\Models\User;
@@ -212,7 +216,142 @@ class InventoryController extends Controller
         return Api::data($data, $status);
     }
 
+    // ---------------------------------------------------------------- Recepciones
+
+    /** De la más reciente a la más antigua, por fecha de recepción. */
+    public function receipts(Request $request): JsonResponse
+    {
+        [$page, $perPage] = Api::page($request);
+        $q = $this->query($request, [
+            'from' => ['sometimes', 'string', 'date'],
+            'to' => ['sometimes', 'string', 'date', 'after_or_equal:from'],
+        ]);
+        $branch = AuthorizeBranch::branch($request);
+        $query = InventoryReceipt::query()->forBranch($branch);
+        if (isset($q['from'])) {
+            $query->where('received_at', '>=', Carbon::parse($q['from']));
+        }
+        if (isset($q['to'])) {
+            $query->where('received_at', '<=', Carbon::parse($q['to']));
+        }
+        $total = (clone $query)->count();
+        $rows = $query->orderBy('received_at', 'desc')->orderBy('_id', 'desc')->skip(($page - 1) * $perPage)->take($perPage)->get();
+
+        return Api::data(Receipts::present($branch, $rows), meta: Api::pagination($page, $perPage, $total));
+    }
+
+    public function receipt(Request $request, string $branchId, string $receiptId): JsonResponse
+    {
+        [$branch, $r] = $this->find($request, InventoryReceipt::class, $receiptId);
+
+        return Api::data(Receipts::present($branch, collect([$r]))[0]);
+    }
+
+    public function createReceipt(Request $request): JsonResponse
+    {
+        $key = Idempotency::key($request);
+        $in = Api::body($request, [
+            'supplierName' => ['required', 'string', 'min:1', 'max:120'],
+            'reference' => ['sometimes', 'nullable', 'string', 'max:120'],
+            'receivedAt' => ['required', 'string', 'date'],
+            'lines' => ['required', 'array', 'list', 'min:1', 'max:200'],
+            'lines.*' => ['array:ingredientId,quantity,unitCost'],
+            'lines.*.ingredientId' => ['required', 'string', 'uuid'],
+            'lines.*.quantity' => ['required', 'string', self::QUANTITY, 'not_regex:/^0+(\.0+)?$/'],
+            'lines.*.unitCost' => ['required', 'array:amount,currency'],
+            'lines.*.unitCost.amount' => ['required', 'string', 'regex:/^\d{1,12}(\.\d{1,4})?$/'],
+            'lines.*.unitCost.currency' => ['required', 'string', Rule::in([Floor::CURRENCY])],
+        ]);
+        $branch = AuthorizeBranch::branch($request);
+        [$status, $data] = Receipts::create($branch, $request->user(), $key, $in, fn (InventoryReceipt $r) => Receipts::present($branch, collect([$r]))[0]);
+
+        return Api::data($data, $status);
+    }
+
+    // ---------------------------------------------------------------- Conteos
+
+    public function counts(Request $request): JsonResponse
+    {
+        [$page, $perPage] = Api::page($request);
+        $q = $this->query($request, ['status' => ['sometimes', 'string', Rule::in(InventoryCount::STATUSES)]]);
+        $branch = AuthorizeBranch::branch($request);
+        $query = InventoryCount::query()->forBranch($branch);
+        if (isset($q['status'])) {
+            $query->where('status', $q['status']);
+        }
+        $total = (clone $query)->count();
+        $rows = $query->orderBy('created_at', 'desc')->orderBy('_id', 'desc')->skip(($page - 1) * $perPage)->take($perPage)->get();
+
+        return Api::data(Counts::present($branch, $rows), meta: Api::pagination($page, $perPage, $total));
+    }
+
+    public function count(Request $request, string $branchId, string $countId): JsonResponse
+    {
+        [$branch, $c] = $this->find($request, InventoryCount::class, $countId);
+
+        return $this->countResponse($branch, $c);
+    }
+
+    public function createCount(Request $request): JsonResponse
+    {
+        $key = Idempotency::key($request);
+        $in = Api::body($request, ['notes' => ['sometimes', 'nullable', 'string', 'max:500']]);
+        $branch = AuthorizeBranch::branch($request);
+        [$status, $data] = Counts::create($branch, $request->user(), $key, $in, fn (InventoryCount $c) => Counts::present($branch, collect([$c]))[0]);
+
+        return $this->etagged($data, $status);
+    }
+
+    /** Reemplaza todas las líneas; lo esperado lo calcula el servidor. */
+    public function countLines(Request $request, string $branchId, string $countId): JsonResponse
+    {
+        $version = Floor::ifMatch($request);
+        $in = Api::body($request, [
+            'lines' => ['present', 'array', 'list', 'max:1000'],
+            'lines.*' => ['array:ingredientId,counted,countedAt'],
+            'lines.*.ingredientId' => ['required', 'string', 'uuid'],
+            'lines.*.counted' => ['required', 'string', self::QUANTITY],
+            'lines.*.countedAt' => ['required', 'string', 'date'],
+        ]);
+        [$branch, $c] = $this->find($request, InventoryCount::class, $countId);
+
+        return $this->countResponse($branch, Counts::replaceLines($branch, $request->user(), $c, $version, $in['lines']));
+    }
+
+    public function applyCount(Request $request, string $branchId, string $countId): JsonResponse
+    {
+        $version = Floor::ifMatch($request);
+        $key = Idempotency::key($request);
+        [$branch, $c] = $this->find($request, InventoryCount::class, $countId);
+        [$status, $data] = Counts::apply($branch, $request->user(), $c, $version, $key, fn (InventoryCount $c) => Counts::present($branch, collect([$c]))[0]);
+
+        return $this->etagged($data, $status);
+    }
+
+    public function cancelCount(Request $request, string $branchId, string $countId): JsonResponse
+    {
+        $version = Floor::ifMatch($request);
+        $in = Api::body($request, ['reason' => ['required', 'string', 'min:3', 'max:500']]);
+        [$branch, $c] = $this->find($request, InventoryCount::class, $countId);
+
+        return $this->countResponse($branch, Counts::cancel($branch, $request->user(), $c, $version, $in['reason']));
+    }
+
     // ---------------------------------------------------------------- Ayudas
+
+    private function countResponse(Branch $branch, InventoryCount $c): JsonResponse
+    {
+        return $this->one(Counts::present($branch, collect([$c]))[0], $c);
+    }
+
+    /** Respuesta de una operación idempotente: el ETag sale de la versión que trae la respuesta guardada. */
+    private function etagged(array $data, int $status): JsonResponse
+    {
+        $response = Api::data($data, $status);
+        $response->headers->set('ETag', Floor::versionEtag((int) $data['version']));
+
+        return $response;
+    }
 
     private function ingredientResponse(Branch $branch, Ingredient $i, int $status = 200): JsonResponse
     {

@@ -91,7 +91,6 @@ Los cambios a una sesión ya abierta piden `If-Match` con su `version` y respond
 Pendiente:
 
 - **Con Checks, Payments y Cash:** imprimir precuenta, recibo y reporte de caja; hoy solo se pide `TEST` a mano.
-- **Con Inventory (fase 5):** recepciones y conteos físicos.
 - **Con Public QR:** el estado `POSIBLE_OCUPACION`.
 
 ## Catálogo y mesas
@@ -174,9 +173,9 @@ Decisiones_Checks. Cada unidad nueva va a la cuenta `OPEN` más reciente de la s
 - **Cierre de la sesión:** cancela las cuentas sin unidades que se cobren y deja `PAID` las de total 0. Las demás deben estar `PAID`, `CANCELLED` o `REFUNDED` (`SESSION_HAS_OPEN_CHECKS`, T-4).
 - **Pagos:** un pago confirmado congela las unidades de su cuenta (`ORDER_UNIT_PAID`, C-2); uno en curso bloquea mover, reabrir y dar cortesías.
 
-## Inventario: catálogo y consumo
+## Inventario
 
-Decisiones_Inventory. Recepciones y conteos llegan en la fase 5; mientras tanto, el stock inicial se carga con un ajuste.
+Decisiones_Inventory. El stock inicial se carga con un ajuste o con una recepción.
 
 | Operación | Ruta |
 |---|---|
@@ -184,6 +183,8 @@ Decisiones_Inventory. Recepciones y conteos llegan en la fase 5; mientras tanto,
 | Bloqueo alimentario, sin `If-Match` | `POST .../ingredients/{ingredientId}/food-safety` |
 | Recetas de un producto | `GET`, `POST .../products/{productId}/recipes`, `GET .../recipes/{recipeVersion}` |
 | Movimientos: consulta, ajuste y desperdicio | `GET`, `POST .../inventory-movements` |
+| Recepciones | `GET`, `POST .../inventory-receipts`, `GET .../inventory-receipts/{receiptId}` |
+| Conteos físicos | `GET`, `POST .../inventory-counts`, `GET .../{countId}`, `PUT .../{countId}/lines`, `POST .../{countId}/apply`, `POST .../{countId}/cancel` |
 
 - **Recetas:** cada publicación es una versión nueva; la anterior queda `SUPERSEDED`. El `If-Match` es la versión del producto.
 - **START** suma la receta vigente y los ajustes de ingredientes de las opciones elegidas, y crea un movimiento `CONSUMPTION` por unidad e ingrediente en la misma transacción. No escribe en el ingrediente: `php artisan restia:inventory`, cada 5 s en el scheduler, aplica los movimientos a `stock` (I-1). `--rebuild` recalcula el stock desde los movimientos.
@@ -191,6 +192,8 @@ Decisiones_Inventory. Recepciones y conteos llegan en la fase 5; mientras tanto,
 - **Bloqueo alimentario:** frena `START` con `INVENTORY_BLOCKED_FOOD_SAFETY` y ningún token lo salta. Cocina bloquea; solo ADMIN y MANAGER desbloquean.
 - **Ingrediente en uso:** no se desactiva si una receta vigente lo usa (`INGREDIENT_IN_USE`, con los productos).
 - **Stock bajo:** al bajar del mínimo se publica `ingredient.low_stock`; marcar el producto como agotado sigue siendo manual (I-10).
+- **Recepciones (I-6, I-9):** inmutables, con proveedor en texto libre y costo unitario por línea. Cada línea crea un movimiento `RECEIPT`; un error se corrige con un ajuste.
+- **Conteos (I-7):** uno `OPEN` por sucursal (`INVENTORY_COUNT_ALREADY_OPEN`). `PUT .../lines` reemplaza la lista completa; lo esperado de cada línea es la suma de los movimientos hasta su `countedAt`, no el stock proyectado. Al aplicar se recalcula y se crea un `COUNT_ADJUSTMENT` por cada diferencia, así que lo consumido después de contar se conserva. Aplicar y cancelar quedan para ADMIN y MANAGER (`inventory.apply_count`).
 
 ## Impresión
 
