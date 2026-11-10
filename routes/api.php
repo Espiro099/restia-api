@@ -152,8 +152,19 @@ Route::middleware('auth.session')->group(function () {
         Route::get('products/{productId}/recipes/{recipeVersion}', 'recipe')->middleware('branch:recipes.read');
 
         Route::get('inventory-movements', 'movements')->middleware('branch:inventory.read');
-        // Recepciones y conteos llegan en la fase 5; un ajuste sirve para cargar el stock inicial.
+        // El permiso depende del tipo: inventory.adjust o inventory.record_waste.
         Route::post('inventory-movements', 'createMovement')->middleware('branch');
+
+        Route::get('inventory-receipts', 'receipts')->middleware('branch:inventory.read');
+        Route::post('inventory-receipts', 'createReceipt')->middleware('branch:inventory.receive');
+        Route::get('inventory-receipts/{receiptId}', 'receipt')->middleware('branch:inventory.read');
+
+        Route::get('inventory-counts', 'counts')->middleware('branch:inventory.read');
+        Route::post('inventory-counts', 'createCount')->middleware('branch:inventory.count');
+        Route::get('inventory-counts/{countId}', 'count')->middleware('branch:inventory.read');
+        Route::put('inventory-counts/{countId}/lines', 'countLines')->middleware('branch:inventory.count');
+        Route::post('inventory-counts/{countId}/apply', 'applyCount')->middleware('branch:inventory.apply_count');
+        Route::post('inventory-counts/{countId}/cancel', 'cancelCount')->middleware('branch:inventory.apply_count');
     });
 
     // Identidades de servicio (D-36, sección 11): recurso global, visible por sucursal administrada.

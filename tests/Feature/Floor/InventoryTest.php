@@ -229,4 +229,116 @@ class InventoryTest extends FloorTestCase
         $this->assertSame('22.5', $this->stockOf($tortilla));
         $this->assertSame(2, $this->auditCount('inventory.movement_created'));
     }
+
+    public function test_recepciones_suman_stock_y_son_inmutables(): void
+    {
+        $tortilla = $this->ingredient('TORTILLA');
+        $meat = $this->ingredient('PASTOR', 'G');
+        $body = [
+            'supplierName' => 'Tortillería La Esperanza', 'reference' => 'F-1024', 'receivedAt' => now()->toIso8601String(),
+            'lines' => [
+                ['ingredientId' => $tortilla, 'quantity' => '100', 'unitCost' => ['amount' => '0.85', 'currency' => 'MXN']],
+                ['ingredientId' => $meat, 'quantity' => '2500.5', 'unitCost' => ['amount' => '0.1825', 'currency' => 'MXN']],
+            ],
+        ];
+        $this->as('mesero', 'POST', 'inventory-receipts', $body, $this->key())->assertStatus(403);
+        $this->as('cocina', 'POST', 'inventory-receipts', $body)->assertStatus(422);
+        $zero = $body;
+        $zero['lines'][0]['quantity'] = '0';
+        $this->as('cocina', 'POST', 'inventory-receipts', $zero, $this->key())->assertStatus(422);
+        $missing = $body;
+        $missing['lines'][1]['ingredientId'] = (string) Str::uuid();
+        $this->as('cocina', 'POST', 'inventory-receipts', $missing, $this->key())->assertStatus(422)
+            ->assertJsonStructure(['error' => ['details' => ['fields' => ['lines.1.ingredientId']]]]);
+
+        $key = $this->key();
+        $receipt = $this->as('cocina', 'POST', 'inventory-receipts', $body, $key)->assertCreated()
+            ->assertJsonPath('data.supplierName', 'Tortillería La Esperanza')->assertJsonPath('data.lines.0.unitCost.amount', '0.85')
+            ->assertJsonPath('data.lines.1.unitCost.amount', '0.1825')->assertJsonPath('data.lines.1.quantity', '2500.5')->json('data');
+        $this->as('cocina', 'POST', 'inventory-receipts', $body, $key)->assertCreated()->assertJsonPath('data.id', $receipt['id']);
+        $this->as('cocina', 'POST', 'inventory-receipts', ['supplierName' => 'Otro'] + $body, $key)->assertStatus(409)->assertJsonPath('error.code', 'IDEMPOTENCY_KEY_REUSED');
+
+        // Un movimiento RECEIPT por línea, ligado a la recepción; el stock sube al proyectar.
+        $this->as('gerente', 'GET', 'inventory-movements?type=RECEIPT')->assertJsonCount(2, 'data')
+            ->assertJsonPath('data.0.sourceType', 'inventory_receipt')->assertJsonPath('data.0.sourceId', $receipt['id']);
+        $this->assertSame('0', $this->stockOf($tortilla));
+        $this->project();
+        $this->assertSame('100', $this->stockOf($tortilla));
+        $this->assertSame('2500.5', $this->stockOf($meat));
+
+        $this->as('cocina', 'GET', "inventory-receipts/{$receipt['id']}")->assertOk()->assertJsonPath('data.reference', 'F-1024');
+        $this->as('cocina', 'GET', 'inventory-receipts?from='.urlencode(now()->subDay()->toIso8601String()))->assertOk()->assertJsonCount(1, 'data');
+        $this->as('cocina', 'GET', 'inventory-receipts?to='.urlencode(now()->subDay()->toIso8601String()))->assertOk()->assertJsonCount(0, 'data');
+        $this->as('mesero', 'GET', 'inventory-receipts')->assertStatus(403);
+        $this->assertSame(1, $this->auditCount('inventory.received'));
+        $this->assertSame(1, DB::connection('mongodb')->table('outbox_events')->where('type', 'inventory.received')->count());
+    }
+
+    public function test_conteo_fisico_ajusta_contra_lo_esperado_a_su_hora(): void
+    {
+        $start = now()->startOfMinute();
+        $this->travelTo($start);
+        $tortilla = $this->ingredient('TORTILLA');
+        $salt = $this->ingredient('SAL', 'G');
+        $this->stock($tortilla, '20');
+        $this->stock($salt, '500');
+
+        $this->as('mesero', 'POST', 'inventory-counts', [], $this->key())->assertStatus(403);
+        $this->travelTo($start->copy()->addMinutes(10));
+        $count = $this->as('cocina', 'POST', 'inventory-counts', ['notes' => 'Cierre de semana'], $this->key())->assertCreated()
+            ->assertHeader('ETag', '"1"')->assertJsonPath('data.status', 'OPEN')->assertJsonPath('data.lines', [])->json('data');
+        $this->as('gerente', 'POST', 'inventory-counts', [], $this->key())->assertStatus(409)->assertJsonPath('error.code', 'INVENTORY_COUNT_ALREADY_OPEN');
+
+        // Aplicar sin líneas no se puede.
+        $this->as('gerente', 'POST', "inventory-counts/{$count['id']}/apply", [], ['If-Match' => '"1"'] + $this->key())
+            ->assertStatus(409)->assertJsonPath('error.code', 'INVENTORY_COUNT_INVALID_STATE');
+
+        $at = now()->toIso8601String();
+        $lines = ['lines' => [
+            ['ingredientId' => $tortilla, 'counted' => '18', 'countedAt' => $at],
+            ['ingredientId' => $salt, 'counted' => '500', 'countedAt' => $at],
+        ]];
+        $this->as('cocina', 'PUT', "inventory-counts/{$count['id']}/lines", $lines)->assertStatus(400);
+        $dup = ['lines' => [$lines['lines'][0], $lines['lines'][0]]];
+        $this->as('cocina', 'PUT', "inventory-counts/{$count['id']}/lines", $dup, ['If-Match' => '"1"'])->assertStatus(422);
+        $future = ['lines' => [['countedAt' => now()->addHour()->toIso8601String()] + $lines['lines'][0]]];
+        $this->as('cocina', 'PUT', "inventory-counts/{$count['id']}/lines", $future, ['If-Match' => '"1"'])->assertStatus(422);
+        $this->as('cocina', 'PUT', "inventory-counts/{$count['id']}/lines", $lines, ['If-Match' => '"1"'])->assertOk()->assertHeader('ETag', '"2"')
+            ->assertJsonPath('data.lines.0.expected', '20')->assertJsonPath('data.lines.0.difference', '-2')
+            ->assertJsonPath('data.lines.1.difference', '0');
+        $this->as('cocina', 'PUT', "inventory-counts/{$count['id']}/lines", $lines, ['If-Match' => '"1"'])->assertStatus(409)->assertJsonPath('error.code', 'VERSION_CONFLICT');
+
+        // Después de contar, cocina sigue trabajando: ese consumo se conserva al aplicar.
+        $this->travelTo($start->copy()->addMinutes(15));
+        $this->as('cocina', 'POST', 'inventory-movements', ['ingredientId' => $tortilla, 'type' => 'WASTE', 'quantity' => '3', 'reason' => 'Se rompieron'], $this->key())->assertCreated();
+
+        $this->as('cocina', 'POST', "inventory-counts/{$count['id']}/apply", [], ['If-Match' => '"2"'] + $this->key())->assertStatus(403);
+        $key = $this->key();
+        $applied = $this->as('gerente', 'POST', "inventory-counts/{$count['id']}/apply", [], ['If-Match' => '"2"'] + $key)->assertOk()
+            ->assertHeader('ETag', '"3"')->assertJsonPath('data.status', 'APPLIED')->assertJsonPath('data.lines.0.difference', '-2')->json('data');
+        $this->assertNotNull($applied['appliedAt']);
+        $this->as('gerente', 'POST', "inventory-counts/{$count['id']}/apply", [], ['If-Match' => '"2"'] + $key)->assertOk()->assertJsonPath('data.version', 3);
+        $this->as('gerente', 'POST', "inventory-counts/{$count['id']}/apply", [], ['If-Match' => '"3"'] + $this->key())
+            ->assertStatus(409)->assertJsonPath('error.code', 'INVENTORY_COUNT_INVALID_STATE');
+
+        // Solo la línea con diferencia genera COUNT_ADJUSTMENT: 20 − 2 del conteo − 3 de desperdicio.
+        $this->as('gerente', 'GET', 'inventory-movements?type=COUNT_ADJUSTMENT')->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.quantity', '-2')->assertJsonPath('data.0.sourceId', $count['id']);
+        $this->project();
+        $this->assertSame('15', $this->stockOf($tortilla));
+        $this->assertSame('500', $this->stockOf($salt));
+        $this->assertSame(1, DB::connection('mongodb')->table('outbox_events')->where('type', 'inventory.count_applied')->count());
+
+        // Ya aplicado, se puede abrir otro; cancelarlo exige motivo y lo cierra.
+        $next = $this->as('cocina', 'POST', 'inventory-counts', [], $this->key())->assertCreated()->json('data');
+        $this->as('cocina', 'POST', "inventory-counts/{$next['id']}/cancel", ['reason' => 'Error'], ['If-Match' => '"1"'])->assertStatus(403);
+        $this->as('gerente', 'POST', "inventory-counts/{$next['id']}/cancel", ['reason' => 'x'], ['If-Match' => '"1"'])->assertStatus(422);
+        $this->as('gerente', 'POST', "inventory-counts/{$next['id']}/cancel", ['reason' => 'Se abrió por error'], ['If-Match' => '"1"'])->assertOk()
+            ->assertJsonPath('data.status', 'CANCELLED');
+        $this->as('cocina', 'PUT', "inventory-counts/{$next['id']}/lines", $lines, ['If-Match' => '"2"'])->assertStatus(409)
+            ->assertJsonPath('error.code', 'INVENTORY_COUNT_INVALID_STATE');
+        $this->as('cocina', 'GET', 'inventory-counts?status=APPLIED')->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('data.0.id', $count['id']);
+        $this->as('cocina', 'GET', 'inventory-counts')->assertOk()->assertJsonCount(2, 'data');
+        $this->assertSame(1, $this->auditCount('inventory_count.cancelled'));
+    }
 }
