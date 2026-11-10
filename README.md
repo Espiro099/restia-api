@@ -266,6 +266,42 @@ php artisan test
 
 Usan la base `restia_test` y la borran al empezar; nunca tocan `restia`.
 
+### Escenario de la fase 5 contra la API real
+
+`tools/escenario_fase5.py` recorre el criterio de salida de la fase 5 por HTTP, como la app: abrir mesa, comandar, cocina, cobro mixto, cierre y limpieza, corte de caja y reporte. En el camino lanza 7 choques en paralelo:
+
+1. Dos empleados abren la misma mesa.
+2. La misma comanda llega tres veces con la misma clave.
+3. Cocina empieza la unidad que el mesero cancela.
+4. Dos cobros completos de la misma cuenta.
+5. El mismo cobro con tarjeta repetido con la misma clave.
+6. Dos confirmaciones de limpieza de la misma mesa.
+7. Un cobro mientras el gerente inicia el corte.
+
+En cada choque exige que gane una sola petición y que la otra reciba su código. Al final, que las ventas y propinas de cada método y el efectivo esperado coincidan con los pagos. `php artisan serve` atiende una petición a la vez, así que los choques necesitan varios servidores:
+
+```bash
+php artisan serve --port=8001
+```
+
+```bash
+php artisan serve --port=8002
+```
+
+```bash
+php artisan serve --port=8003
+```
+
+```bash
+python tools/escenario_fase5.py --ports 8001,8002,8003 --php php
+```
+
+Necesita la sucursal de `restia:install`, `restia:demo --staff` y `restia:demo-printing`, `RESTIA_DEMO_PASSWORD` en el `.env` y 3 mesas libres. Cada corrida tiene estos efectos:
+- Da de alta 3 dispositivos e inicia sesión con `mesero@`, `cocina@` y `gerente@demo.mx`. Cada usuario admite 2 sesiones Android, así que puede cerrar la del emulador.
+- Cierra el turno abierto y deja otro abierto al terminar.
+
+En el choque 7, el corte sale con un retraso al azar para que unas corridas gane el cobro y otras el corte. Conviene correrlo varias veces. Termina con código 0 si todo cuadra.
+
 ## Base técnica
 
 | Pieza | Archivo | Qué hace |
