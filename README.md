@@ -246,6 +246,14 @@ $env:RESTIA_AGENT_TOKEN = "<token>"; php artisan restia:print-agent-sim
 
 Para mandar una comanda sin la app, `php artisan restia:demo-order --branch=CENTRO` abre una mesa libre y pide un producto de cada estación (`--table=N` usa una mesa ya abierta). En unos segundos sale en el agente.
 
+Para probar la app Android contra este backend, después de `restia:demo --staff` y `restia:demo-printing`:
+
+```bash
+php artisan restia:demo-mobile --branch=CENTRO
+```
+
+Abre un turno en la primera caja activa (o crea "Caja principal"), crea la ruta `CAJA` para la precuenta, el recibo y el reporte de caja, e imprime un código de alta para el dispositivo, porque sin login Web no hay otra forma de obtenerlo. Se puede repetir: solo crea lo que falta y da otro código. Los pasos del lado de la app están en el README de `restia-mobile`.
+
 Fallas con `--fail`: `not-sent` (la impresora no recibe nada; se reintenta sola hasta 3 veces), `uncertain` (se corta a media impresión; queda `UNKNOWN`), `crash` (el agente se cae sin reportar; queda `UNKNOWN` al vencer el plazo) y `random` (falla con la probabilidad de `--fail-rate`, 0.3 por omisión). `--once` hace una sola vuelta. Ninguno de estos comandos corre en producción.
 
 ## Pruebas del backend
