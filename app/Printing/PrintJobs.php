@@ -5,6 +5,10 @@ namespace App\Printing;
 use App\Exceptions\DomainConflict;
 use App\Identity\MobileAuth;
 use App\Models\Branch;
+use App\Models\CashRegister;
+use App\Models\CashShift;
+use App\Models\Check;
+use App\Models\Payment;
 use App\Models\PrintAgent;
 use App\Models\Printer;
 use App\Models\PrintJob;
@@ -127,8 +131,10 @@ final class PrintJobs
     }
 
     /**
-     * Petición a mano (PR-3). Por ahora solo TEST: la precuenta y el recibo llegan con Checks y
-     * Payments, y el reporte de caja con Cash, porque hoy no existe su origen.
+     * Petición a mano (PR-3). TEST va directo a la impresora que se prueba; precuenta, recibo y reporte
+     * de caja salen por una ruta activa de su tipo: la indicada en `printStationId` o, si no, la primera
+     * por código. Sin ruta responde PRINT_ROUTE_NOT_CONFIGURED. El documento se arma al crear el
+     * trabajo y no cambia después (PR-4).
      *
      * @param  array{type: string, sourceId: string, printStationId?: string}  $in
      * @return array{0: int, 1: array<string, mixed>}
@@ -136,7 +142,7 @@ final class PrintJobs
     public static function request(Branch $branch, User $actor, string $key, array $in): array
     {
         if ($in['type'] !== 'TEST') {
-            throw ValidationException::withMessages(['sourceId' => 'El origen de este documento todavía no existe en esta versión.']);
+            return self::requestDocument($branch, $actor, $key, $in);
         }
         $printer = Printers::find($branch, $in['sourceId'], 'sourceId');
         if ($printer->status !== Printer::ACTIVE) {
@@ -155,6 +161,66 @@ final class PrintJobs
 
             return [201, self::one($branch, $job), $job->uuid];
         });
+    }
+
+    /**
+     * @param  array{type: string, sourceId: string, printStationId?: string}  $in
+     * @return array{0: int, 1: array<string, mixed>}
+     */
+    private static function requestDocument(Branch $branch, User $actor, string $key, array $in): array
+    {
+        $uuid = strtolower($in['sourceId']);
+        [$sourceType, $source] = match ($in['type']) {
+            'PRE_CHECK' => ['check', Check::query()->forBranch($branch)->where('uuid', $uuid)->first()],
+            'PAYMENT_RECEIPT' => ['payment', Payment::query()->forBranch($branch)->where('uuid', $uuid)->first()],
+            'CASH_SHIFT_REPORT' => ['cash_shift', CashShift::query()->forBranch($branch)->where('uuid', $uuid)->first()],
+        };
+        if (! $source) {
+            throw ValidationException::withMessages(['sourceId' => 'El origen no existe en esta sucursal.']);
+        }
+        if ($source instanceof Check && $source->status === Check::CANCELLED) {
+            throw ValidationException::withMessages(['sourceId' => 'La cuenta está cancelada.']);
+        }
+        if ($source instanceof Payment && $source->status !== Payment::CONFIRMED) {
+            throw ValidationException::withMessages(['sourceId' => 'Solo un pago confirmado tiene recibo.']);
+        }
+        $route = self::route($branch, $in['type'], $in['printStationId'] ?? null);
+        $branchId = new ObjectId($branch->getKey());
+        $actorId = new ObjectId($actor->getKey());
+
+        return Idempotency::run($branchId, $key, $actorId, 'createPrintJob', Idempotency::hash('createPrintJob', $in), function () use ($branch, $branchId, $actorId, $in, $sourceType, $source, $route) {
+            $printer = Printer::query()->find((string) $route->printer_id);
+            if (! $printer || $printer->status !== Printer::ACTIVE) {
+                throw new DomainConflict('PRINTER_INACTIVE');
+            }
+            $document = match ($in['type']) {
+                'PRE_CHECK' => Documents::preCheck($branch, $source),
+                'PAYMENT_RECEIPT' => Documents::paymentReceipt($branch, $source, Check::query()->find((string) $source->check_id)),
+                'CASH_SHIFT_REPORT' => Documents::cashShiftReport($branch, $source, CashRegister::query()->find((string) $source->cash_register_id)),
+            };
+            $job = self::make($branchId, [
+                'type' => $in['type'], 'printer_id' => new ObjectId($printer->getKey()), 'print_station_id' => new ObjectId($route->getKey()),
+                'source_type' => $sourceType, 'source_id' => new ObjectId($source->getKey()), 'source_uuid' => $source->uuid,
+                'document' => $document, 'created_by' => $actorId,
+            ]);
+            Audit::record('print_job.requested', 'print_job', $job->getKey(), $branchId, $actorId, changes: [
+                'after' => ['type' => $in['type'], 'source_id' => (string) $source->getKey(), 'printer_id' => (string) $printer->getKey()],
+            ]);
+
+            return [201, self::one($branch, $job), $job->uuid];
+        });
+    }
+
+    /** Ruta activa para un tipo pedido a mano: la indicada, si sirve para ese tipo, o la primera por código. */
+    private static function route(Branch $branch, string $type, ?string $printStationUuid): PrintStation
+    {
+        $query = PrintStation::query()->forBranch($branch)->where('status', PrintStation::ACTIVE)->where('job_types', $type);
+        if ($printStationUuid === null) {
+            return $query->orderBy('code')->first() ?? throw new DomainConflict('PRINT_ROUTE_NOT_CONFIGURED');
+        }
+
+        return $query->where('uuid', strtolower($printStationUuid))->first()
+            ?? throw ValidationException::withMessages(['printStationId' => 'La ruta no existe, está inactiva o no imprime este documento.']);
     }
 
     /**

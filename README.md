@@ -90,7 +90,6 @@ Los cambios a una sesión ya abierta piden `If-Match` con su `version` y respond
 
 Pendiente:
 
-- **Con Checks, Payments y Cash:** imprimir precuenta, recibo y reporte de caja; hoy solo se pide `TEST` a mano.
 - **Con Public QR:** el estado `POSIBLE_OCUPACION`.
 
 ## Catálogo y mesas
@@ -218,6 +217,7 @@ Decisiones_Printing y D-36, sección 11. Un agente local consulta trabajos hacia
 - **Impresoras:** `NETWORK` lleva `host` y `port` (9100 por omisión); `USB`, el nombre local. No se desactivan con trabajos `CLAIMED` o `PRINTING` (`PRINTER_HAS_ACTIVE_JOBS`).
 - **Rutas:** `KITCHEN_TICKET` y `VOID_NOTICE` necesitan una estación de producción. Una impresora inactiva no recibe rutas (`PRINTER_INACTIVE`).
 - **Trabajos automáticos:** `php artisan restia:printing` lee outbox y crea una comanda por cada ruta activa de cada estación con `order.created`, y un aviso con `order_unit.voided`. Si todo lo de una estación se cancela antes de imprimir, su comanda pendiente se cancela. Sin ruta, publica `print_job.route_missing`; la comanda nunca se bloquea.
+- **A petición:** `TEST` va directo a la impresora que se prueba (`printing.manage`). `PRE_CHECK` (cuenta no cancelada), `PAYMENT_RECEIPT` (pago `CONFIRMED`) y `CASH_SHIFT_REPORT` (turno, exige además `cash.read`) salen por la ruta indicada en `printStationId` o por la primera activa de su tipo; sin ruta, `PRINT_ROUTE_NOT_CONFIGURED`. El documento se arma al pedirlo y no cambia. El recibo lleva la leyenda de que no es comprobante fiscal y, de la tarjeta, solo la marca. El reporte de un turno abierto sale marcado como parcial.
 - **Plazos:** el mismo comando devuelve a `PENDING` un reclamo vencido en `CLAIMED`, deja en `UNKNOWN` uno vencido en `PRINTING`, pasa a `FAILED` una comanda sin imprimir tras 15 min (`PRINT_JOB_EXPIRED`) y publica `print_agent.offline` tras 2 min sin latido. El scheduler lo corre cada 5 s: en local, `php artisan schedule:work`.
 - **Reintentos:** `NOT_SENT` reintenta solo, hasta 3 intentos con espera creciente; después queda `FAILED`. `UNKNOWN` nunca se reintenta solo: una persona lo resuelve.
 - **Reimpresión:** trabajo nuevo con el contenido original; el agente lo recibe con la marca `*** REIMPRESIÓN ***`.
