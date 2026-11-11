@@ -36,7 +36,7 @@ final class Catalog
 
         return self::unique($taken, fn () => Mongo::transaction(function () use ($branchId, $actor, $entity, $make, $menu) {
             $doc = $make($branchId);
-            Audit::record("$entity.created", $entity, $doc->getKey(), $branchId, new ObjectId($actor->getKey()), changes: ['after' => self::snapshot($doc->getAttributes())]);
+            Audit::record("$entity.created", $entity, $doc->getKey(), $branchId, new ObjectId($actor->getKey()), changes: ['after' => self::snapshot(array_diff_key($doc->getAttributes(), array_flip($doc->getHidden())))]);
             self::publish("$entity.created", $entity, $doc, $branchId, $menu);
 
             return $doc;
@@ -105,7 +105,7 @@ final class Catalog
 
     /** Valores comparables y legibles en la auditoría: ObjectId y Decimal128 como texto. */
     /**
-     * Copia del documento para la auditoría, sin identificadores internos: la API de auditoría nunca
+     * Copia del documento para la auditoría, sin los campos ocultos del modelo (como el token del QR) ni identificadores internos: la API de auditoría nunca
      * expone ObjectIds (AU-1). Las fechas quedan en ISO 8601.
      *
      * @param  array<string, mixed>  $attributes

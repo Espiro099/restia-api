@@ -12,6 +12,7 @@ use App\Http\Controllers\MobileAuthController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\PrintingController;
 use App\Http\Controllers\PrintJobController;
+use App\Http\Controllers\PublicQrController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\ServiceIdentityController;
 use Illuminate\Support\Facades\Route;
@@ -24,6 +25,13 @@ Route::prefix('auth/mobile')->controller(MobileAuthController::class)->group(fun
     Route::post('enroll', 'enroll');
     Route::post('login', 'login');
     Route::post('refresh', 'refresh');
+});
+
+// Public QR (QR-1 a QR-12): el token del QR en X-QR-Token es la única credencial. Solo menú y presencia.
+Route::controller(PublicQrController::class)->prefix('public')->middleware('qr')->group(function () {
+    Route::get('context', 'context');
+    Route::get('menu', 'menu');
+    Route::post('presence', 'presence');
 });
 
 Route::middleware('auth.session')->group(function () {
@@ -168,6 +176,10 @@ Route::middleware('auth.session')->group(function () {
         Route::post('inventory-counts/{countId}/apply', 'applyCount')->middleware('branch:inventory.apply_count');
         Route::post('inventory-counts/{countId}/cancel', 'cancelCount')->middleware('branch:inventory.apply_count');
     });
+
+    // Token QR de una mesa, para imprimirlo o rotarlo (QR-4, QR-12).
+    Route::get('branches/{branchId}/tables/{tableId}/qr', [PublicQrController::class, 'show'])->middleware('branch:tables.qr_read');
+    Route::post('branches/{branchId}/tables/{tableId}/qr/rotate', [PublicQrController::class, 'rotate'])->middleware('branch:tables.qr_rotate');
 
     // Reportes (RP-1 a RP-3): proyecciones por día; la reconstrucción corre con restia:reports.
     Route::controller(ReportController::class)->prefix('branches/{branchId}/reports')->group(function () {
