@@ -256,6 +256,19 @@ Abre un turno en la primera caja activa (o crea "Caja principal"), crea la ruta 
 
 Fallas con `--fail`: `not-sent` (la impresora no recibe nada; se reintenta sola hasta 3 veces), `uncertain` (se corta a media impresión; queda `UNKNOWN`), `crash` (el agente se cae sin reportar; queda `UNKNOWN` al vencer el plazo) y `random` (falla con la probabilidad de `--fail-rate`, 0.3 por omisión). `--once` hace una sola vuelta. Ninguno de estos comandos corre en producción.
 
+## Auditoría (fase 6)
+
+| Operación | Ruta | Permiso |
+|---|---|---|
+| Bitácora de una sucursal | `GET /branches/{branchId}/audit-log` | `audit.read` (ADMIN y MANAGER) |
+| Bitácora global | `GET /audit-log` | `audit.read_global` (ADMIN) |
+
+- `from` y `to` son obligatorios, con un rango de hasta 31 días. Filtros opcionales: `entityType`, `entityId`, `actorId` y `action`. Ordena del más reciente al más antiguo.
+- La global cubre las sucursales donde se tiene el permiso, más lo que no es de ninguna sucursal, como las identidades de servicio.
+- `audit_log` guarda ObjectIds y la API solo expone UUID públicos. Sucursal, actor y entidad se traducen al leer; cualquier ObjectId que quede en `changes` se quita.
+- Cada entrada nueva lleva su propio `uuid`. Las anteriores reciben uno estable, derivado de su `_id`.
+- Antes, el catálogo copiaba el documento completo (con `_id`, `branch_id` y fechas en milisegundos) y el alta de dispositivo registraba `DEVICE` como actor. Ahora el catálogo guarda una copia sin ids y con fechas ISO, y el alta queda a nombre del gerente que emitió el código. La lectura corrige las entradas viejas.
+
 ## Pruebas del backend
 
 Con el replica set local arrancado:

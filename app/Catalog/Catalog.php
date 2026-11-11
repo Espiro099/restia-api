@@ -10,8 +10,10 @@ use App\Support\Audit;
 use App\Support\Mongo;
 use App\Support\Outbox;
 use Closure;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 use MongoDB\BSON\ObjectId;
+use MongoDB\BSON\UTCDateTime;
 use Throwable;
 
 /**
@@ -34,7 +36,7 @@ final class Catalog
 
         return self::unique($taken, fn () => Mongo::transaction(function () use ($branchId, $actor, $entity, $make, $menu) {
             $doc = $make($branchId);
-            Audit::record("$entity.created", $entity, $doc->getKey(), $branchId, new ObjectId($actor->getKey()), changes: ['after' => self::plain($doc->getAttributes())]);
+            Audit::record("$entity.created", $entity, $doc->getKey(), $branchId, new ObjectId($actor->getKey()), changes: ['after' => self::snapshot($doc->getAttributes())]);
             self::publish("$entity.created", $entity, $doc, $branchId, $menu);
 
             return $doc;
@@ -102,6 +104,28 @@ final class Catalog
     }
 
     /** Valores comparables y legibles en la auditoría: ObjectId y Decimal128 como texto. */
+    /**
+     * Copia del documento para la auditoría, sin identificadores internos: la API de auditoría nunca
+     * expone ObjectIds (AU-1). Las fechas quedan en ISO 8601.
+     *
+     * @param  array<string, mixed>  $attributes
+     * @return array<string, mixed>
+     */
+    private static function snapshot(array $attributes): array
+    {
+        $out = [];
+        foreach ($attributes as $key => $value) {
+            if ($key === '_id' || $key === 'id' || str_ends_with($key, '_id') || str_ends_with($key, '_ids')) {
+                continue;
+            }
+            $out[$key] = $value instanceof UTCDateTime || $value instanceof \DateTimeInterface
+                ? Carbon::instance($value instanceof UTCDateTime ? $value->toDateTime() : $value)->utc()->format('Y-m-d\TH:i:s\Z')
+                : self::plain($value);
+        }
+
+        return $out;
+    }
+
     private static function plain(mixed $value): mixed
     {
         return match (true) {

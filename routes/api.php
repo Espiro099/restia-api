@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AccountController;
+use App\Http\Controllers\AuditController;
 use App\Http\Controllers\CashController;
 use App\Http\Controllers\CatalogController;
 use App\Http\Controllers\CheckController;
@@ -166,6 +167,10 @@ Route::middleware('auth.session')->group(function () {
         Route::post('inventory-counts/{countId}/apply', 'applyCount')->middleware('branch:inventory.apply_count');
         Route::post('inventory-counts/{countId}/cancel', 'cancelCount')->middleware('branch:inventory.apply_count');
     });
+
+    // Auditoría (AU-1): solo lectura. La global incluye lo que no es de ninguna sucursal.
+    Route::get('branches/{branchId}/audit-log', [AuditController::class, 'branch'])->middleware('branch:audit.read');
+    Route::get('audit-log', [AuditController::class, 'global'])->middleware('anybranch:audit.read_global');
 
     // Identidades de servicio (D-36, sección 11): recurso global, visible por sucursal administrada.
     Route::controller(ServiceIdentityController::class)->prefix('service-identities')->middleware('anybranch:service_identities.manage')->group(function () {
