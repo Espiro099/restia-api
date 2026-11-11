@@ -7,6 +7,7 @@ use App\Models\Branch;
 use App\Models\RestaurantTable;
 use App\Models\TableAssignment;
 use App\Models\User;
+use App\PublicQr\PublicQr;
 use MongoDB\BSON\ObjectId;
 
 /** Alta y cambios administrativos de mesas. El estado operativo no se escribe: se deriva al leer (T-5). */
@@ -20,6 +21,8 @@ final class TableAdmin
         return Catalog::create($branch, $actor, 'table', 'TABLE_NUMBER_TAKEN', fn (ObjectId $branchId) => RestaurantTable::query()->create([
             'branch_id' => $branchId, 'number' => (int) $in['number'], 'capacity' => (int) $in['capacity'],
             'zone' => $in['zone'] ?? null, 'combination_group' => $in['combinationGroup'] ?? null, 'status' => RestaurantTable::ACTIVE,
+            // QR-3: el token se genera con la mesa y se imprime una vez.
+            'qr_token' => PublicQr::newToken(),
         ]), menu: false);
     }
 

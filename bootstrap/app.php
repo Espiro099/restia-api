@@ -5,6 +5,7 @@ use App\Http\Middleware\AuthenticateService;
 use App\Http\Middleware\AuthenticateSession;
 use App\Http\Middleware\AuthorizeAnyBranch;
 use App\Http\Middleware\AuthorizeBranch;
+use App\Http\Middleware\PublicQrToken;
 use App\Support\ApiErrors;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -24,6 +25,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'auth.session' => AuthenticateSession::class,
             'branch' => AuthorizeBranch::class,
             'anybranch' => AuthorizeAnyBranch::class,
+            'qr' => PublicQrToken::class,
             'auth.service' => AuthenticateService::class,
         ]);
     })
