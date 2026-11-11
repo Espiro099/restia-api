@@ -12,6 +12,7 @@ use App\Http\Controllers\MobileAuthController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\PrintingController;
 use App\Http\Controllers\PrintJobController;
+use App\Http\Controllers\ReportController;
 use App\Http\Controllers\ServiceIdentityController;
 use Illuminate\Support\Facades\Route;
 
@@ -166,6 +167,14 @@ Route::middleware('auth.session')->group(function () {
         Route::put('inventory-counts/{countId}/lines', 'countLines')->middleware('branch:inventory.count');
         Route::post('inventory-counts/{countId}/apply', 'applyCount')->middleware('branch:inventory.apply_count');
         Route::post('inventory-counts/{countId}/cancel', 'cancelCount')->middleware('branch:inventory.apply_count');
+    });
+
+    // Reportes (RP-1 a RP-3): proyecciones por día; la reconstrucción corre con restia:reports.
+    Route::controller(ReportController::class)->prefix('branches/{branchId}/reports')->group(function () {
+        Route::get('daily-sales', 'dailySales')->middleware('branch:reports.read');
+        Route::get('hourly-occupancy', 'hourlyOccupancy')->middleware('branch:reports.read');
+        Route::post('rebuilds', 'rebuild')->middleware('branch:reports.rebuild');
+        Route::get('rebuilds/{rebuildId}', 'rebuildStatus')->middleware('branch:reports.rebuild');
     });
 
     // Auditoría (AU-1): solo lectura. La global incluye lo que no es de ninguna sucursal.

@@ -256,6 +256,27 @@ Abre un turno en la primera caja activa (o crea "Caja principal"), crea la ruta 
 
 Fallas con `--fail`: `not-sent` (la impresora no recibe nada; se reintenta sola hasta 3 veces), `uncertain` (se corta a media impresión; queda `UNKNOWN`), `crash` (el agente se cae sin reportar; queda `UNKNOWN` al vencer el plazo) y `random` (falla con la probabilidad de `--fail-rate`, 0.3 por omisión). `--once` hace una sola vuelta. Ninguno de estos comandos corre en producción.
 
+## Reportes (fase 6)
+
+| Operación | Ruta | Permiso |
+|---|---|---|
+| Ventas diarias | `GET /branches/{branchId}/reports/daily-sales?from=&to=` | `reports.read` (ADMIN y MANAGER) |
+| Ocupación por hora | `GET /branches/{branchId}/reports/hourly-occupancy?from=&to=` | `reports.read` |
+| Reconstruir un rango | `POST /branches/{branchId}/reports/rebuilds` (202) | `reports.rebuild` (ADMIN) |
+| Estado de la reconstrucción | `GET /branches/{branchId}/reports/rebuilds/{rebuildId}` | `reports.rebuild` |
+
+- **Son proyecciones (RP-3).** `restia:reports`, cada 15 s en el programador, toma de outbox los eventos de pagos, reembolsos, cuentas y sesiones, y recalcula completo cada día de negocio que tocan. Nunca acumula, así que reconstruir da lo mismo. `asOf` indica cuándo se calculó.
+- **Venta (RP-2):** por el día de negocio en que se confirmó el pago: confirmado menos reembolsado.
+  - Propinas (netas de reembolsos), cortesías y facturado van aparte. Facturado es 0 hasta que exista Fiscal.
+  - `checkCount` cuenta las cuentas `PAID` del día y `guestCount`, las personas de las sesiones no canceladas.
+- **Ocupación:** por cada hora local del día de negocio, cuenta:
+  - Las sesiones abiertas en esa hora.
+  - Las mesas ocupadas en algún momento de la hora.
+  - Las personas de esas sesiones.
+
+  Solo aparecen las horas con actividad, y un día sin actividad no tiene filas.
+- **Rangos:** la lectura acepta hasta 92 días y la reconstrucción hasta 366. Solo puede haber una reconstrucción activa por sucursal (`REPORT_REBUILD_IN_PROGRESS`).
+
 ## Auditoría (fase 6)
 
 | Operación | Ruta | Permiso |
