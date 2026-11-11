@@ -256,6 +256,52 @@ Abre un turno en la primera caja activa (o crea "Caja principal"), crea la ruta 
 
 Fallas con `--fail`: `not-sent` (la impresora no recibe nada; se reintenta sola hasta 3 veces), `uncertain` (se corta a media impresión; queda `UNKNOWN`), `crash` (el agente se cae sin reportar; queda `UNKNOWN` al vencer el plazo) y `random` (falla con la probabilidad de `--fail-rate`, 0.3 por omisión). `--once` hace una sola vuelta. Ninguno de estos comandos corre en producción.
 
+## QR público (fase 6)
+
+La página del cliente solo ve el menú y avisa que hay alguien en la mesa (QR-1). Nunca ve comandas, cuenta ni estado (QR-2).
+
+| Operación | Ruta | Credencial |
+|---|---|---|
+| Restaurante y número de mesa | `GET /public/context` | `X-QR-Token` |
+| Menú público, con `ETag` | `GET /public/menu` | `X-QR-Token` |
+| Señal de presencia | `POST /public/presence` (204) | `X-QR-Token` |
+| Token y URL de una mesa | `GET /branches/{branchId}/tables/{tableId}/qr` | `tables.qr_read` (ADMIN y MANAGER) |
+| Rotar el token | `POST /branches/{branchId}/tables/{tableId}/qr/rotate` | `tables.qr_rotate`, con `If-Match` y motivo |
+
+- **El token:** 256 bits en base64url. Se genera con la mesa; las mesas anteriores lo recibieron en la migración. Identifica la mesa, no la sesión (QR-3).
+  - El QR codifica `RESTIA_PUBLIC_URL/m#<token>`.
+  - La auditoría nunca lo guarda.
+- **Rotar (QR-4):** el token anterior sirve 7 días más. Una segunda rotación dentro de ese plazo lo invalida de inmediato.
+- **Token inválido o vencido, mesa `INACTIVE` o sucursal inactiva:** siempre `401 QR_TOKEN_INVALID`, sin más detalle.
+- **Menú (QR-7):** sin códigos, descripciones internas ni ids de sucursal. Los agotados aparecen marcados.
+- **Presencia (QR-8):** un documento por mesa que vence a los 10 minutos (índice TTL), sin datos del visitante.
+  - Una mesa libre con señal vigente se ve como `POSIBLE_OCUPACION`.
+  - En mantenimiento responde 204 pero no registra nada.
+- **Límites (QR-9):** 60 lecturas por minuto por IP, 6 señales por minuto por mesa y 20 tokens inválidos por minuto por IP. Al excederlos, `429 TOO_MANY_ATTEMPTS`.
+- **Respuestas:** llevan `Referrer-Policy: no-referrer`, `X-Robots-Tag: noindex` y `Cache-Control: private, no-cache`.
+- **Pendiente de despliegue (QR-11):** dominio propio, CORS solo para ese dominio y la página web misma.
+
+## Reportes (fase 6)
+
+| Operación | Ruta | Permiso |
+|---|---|---|
+| Ventas diarias | `GET /branches/{branchId}/reports/daily-sales?from=&to=` | `reports.read` (ADMIN y MANAGER) |
+| Ocupación por hora | `GET /branches/{branchId}/reports/hourly-occupancy?from=&to=` | `reports.read` |
+| Reconstruir un rango | `POST /branches/{branchId}/reports/rebuilds` (202) | `reports.rebuild` (ADMIN) |
+| Estado de la reconstrucción | `GET /branches/{branchId}/reports/rebuilds/{rebuildId}` | `reports.rebuild` |
+
+- **Son proyecciones (RP-3).** `restia:reports`, cada 15 s en el programador, toma de outbox los eventos de pagos, reembolsos, cuentas y sesiones, y recalcula completo cada día de negocio que tocan. Nunca acumula, así que reconstruir da lo mismo. `asOf` indica cuándo se calculó.
+- **Venta (RP-2):** por el día de negocio en que se confirmó el pago: confirmado menos reembolsado.
+  - Propinas (netas de reembolsos), cortesías y facturado van aparte. Facturado es 0 hasta que exista Fiscal.
+  - `checkCount` cuenta las cuentas `PAID` del día y `guestCount`, las personas de las sesiones no canceladas.
+- **Ocupación:** por cada hora local del día de negocio, cuenta:
+  - Las sesiones abiertas en esa hora.
+  - Las mesas ocupadas en algún momento de la hora.
+  - Las personas de esas sesiones.
+
+  Solo aparecen las horas con actividad, y un día sin actividad no tiene filas.
+- **Rangos:** la lectura acepta hasta 92 días y la reconstrucción hasta 366. Solo puede haber una reconstrucción activa por sucursal (`REPORT_REBUILD_IN_PROGRESS`).
+
 ## Auditoría (fase 6)
 
 | Operación | Ruta | Permiso |

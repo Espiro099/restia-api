@@ -16,6 +16,9 @@ Schedule::command('restia:printing')->everyFiveSeconds()->withoutOverlapping();
 // Inventario: stock_actual se actualiza segundos después de cada movimiento (I-1).
 Schedule::command('restia:inventory')->everyFiveSeconds()->withoutOverlapping();
 
+// Reportes: se actualizan desde outbox y atienden reconstrucciones (RP-3). Unos segundos de retraso bastan.
+Schedule::command('restia:reports')->everyFifteenSeconds()->withoutOverlapping();
+
 // Caja: un turno abierto más de 24 horas genera una alerta (CA-11).
 Schedule::call(fn () => Cash::forgotten())->name('cash-forgotten-shifts')->everyFifteenMinutes()->withoutOverlapping();
 
