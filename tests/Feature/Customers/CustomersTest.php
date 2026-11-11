@@ -92,4 +92,17 @@ class CustomersTest extends FloorTestCase
         $this->assertSame('Lo pidió el cliente', ((array) $audit)['reason']);
         $this->assertSame(1, DB::connection('mongodb')->table('outbox_events')->where('type', 'customer.anonymized')->count());
     }
+
+    /** Casos negativos de casos_negativos.csv para clientes que no cubren las pruebas anteriores. */
+    public function test_casos_negativos_de_clientes(): void
+    {
+        $key = $this->key();
+        $ana = $this->as('mesero', 'POST', 'customers', $this->ana, $key)->assertCreated()->json('data');
+        $this->as('mesero', 'POST', 'customers', ['name' => 'Otra'] + $this->ana, $key)->assertStatus(409)->assertJsonPath('error.code', 'IDEMPOTENCY_KEY_REUSED');
+        $this->staff['admin'] = $this->staffMember('admin@ejemplo.mx', $this->branch, 'ADMIN');
+        $this->as('admin', 'POST', "customers/{$ana['id']}/anonymize", ['reason' => 'Lo pidió'], ['If-Match' => '"9"'])
+            ->assertStatus(409)->assertJsonPath('error.code', 'VERSION_CONFLICT');
+        Branch::query()->where('_id', $this->branch->getKey())->update(['status' => Branch::INACTIVE]);
+        $this->as('mesero', 'POST', 'customers', $this->ana, $this->key())->assertStatus(409)->assertJsonPath('error.code', 'BRANCH_INACTIVE');
+    }
 }

@@ -2,6 +2,8 @@
 
 namespace Tests\Feature\Reservations;
 
+use App\Models\Branch;
+use App\Models\RestaurantTable;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Testing\TestResponse;
@@ -198,5 +200,70 @@ class ReservationsTest extends FloorTestCase
         $this->artisan('restia:reservations')->expectsOutputToContain('datos borrados 2')->assertSuccessful();
         $this->as('mesero', 'GET', "reservations/{$pending['id']}")->assertJsonPath('data.customer.name', 'Cliente anonimizado')
             ->assertJsonPath('data.customer.phone', null)->assertJsonPath('data.notes', null);
+    }
+
+    /** Casos negativos de casos_negativos.csv para las reservas del personal. Los RESERVATION_AI_* llegan con IA. */
+    public function test_casos_negativos_de_reservas(): void
+    {
+        $code = fn (TestResponse $r, string $code) => $r->assertStatus(409)->assertJsonPath('error.code', $code);
+        $stale = fn (array $r) => ['If-Match' => '"'.($r['version'] + 5).'"'] + $this->key();
+
+        // Una clave usada con otro cuerpo, en cada operación con Idempotency-Key.
+        $key = $this->key();
+        $body = ['startAt' => $this->at('14:00'), 'endAt' => $this->at('16:00'), 'partySize' => 2, 'customer' => ['name' => 'Ana', 'phone' => '+523312345678']];
+        $a = $this->as('mesero', 'POST', 'reservations', $body, $key)->assertCreated()->json('data');
+        $code($this->as('mesero', 'POST', 'reservations', ['partySize' => 3] + $body, $key), 'IDEMPOTENCY_KEY_REUSED');
+        $b = $this->reserve(2);
+        $reuse = function (string $action, array $first, array $second, array $body = []) use ($code) {
+            $key = $this->key();
+            $this->as('mesero', 'POST', "reservations/{$first['id']}/$action", $body, ['If-Match' => '"'.$first['version'].'"'] + $key);
+            $code($this->as('mesero', 'POST', "reservations/{$second['id']}/$action", $body, ['If-Match' => '"'.$second['version'].'"'] + $key), 'IDEMPOTENCY_KEY_REUSED');
+        };
+        $reuse('confirm', $a, $b);
+        $a = $this->as('mesero', 'GET', "reservations/{$a['id']}")->json('data');
+        $b = $this->confirm($b);
+        $key = $this->key();
+        $this->as('mesero', 'PATCH', "reservations/{$a['id']}", ['notes' => 'Ventana'], ['If-Match' => '"'.$a['version'].'"'] + $key)->assertOk();
+        $code($this->as('mesero', 'PATCH', "reservations/{$b['id']}", ['notes' => 'Ventana'], ['If-Match' => '"'.$b['version'].'"'] + $key), 'IDEMPOTENCY_KEY_REUSED');
+        $a = $this->as('mesero', 'GET', "reservations/{$a['id']}")->json('data');
+        $b = $this->as('mesero', 'GET', "reservations/{$b['id']}")->json('data');
+        $this->clock('2026-11-20 13:50');
+        $reuse('arrive', $a, $b);
+        $a = $this->as('mesero', 'GET', "reservations/{$a['id']}")->json('data');
+        $reuse('check-in', $a, $b, ['tableIds' => $this->tableIds(5)]);
+        $c = $this->reserve(2, '18:00', '19:00');
+        $d = $this->reserve(2, '18:00', '19:00');
+        $reuse('cancel', $c, $d, ['reason' => 'Prueba de clave']);
+        $this->clock('2026-11-20 10:00');
+        $e = $this->confirm($this->reserve(2, '12:00', '13:00'));
+        $f = $this->confirm($this->reserve(2, '12:00', '13:00'));
+        $this->clock('2026-11-20 12:20');
+        $reuse('no-show', $e, $f);
+
+        // Versión vieja en cada transición.
+        $g = $this->reserve(2, '20:00', '21:00');
+        $code($this->as('mesero', 'PATCH', "reservations/{$g['id']}", ['notes' => 'x'], $stale($g)), 'VERSION_CONFLICT');
+        foreach (['confirm', 'arrive', 'check-in', 'cancel', 'no-show'] as $action) {
+            $body = ['check-in' => ['tableIds' => $this->tableIds(6)], 'cancel' => ['reason' => 'Prueba']][$action] ?? [];
+            $code($this->as('mesero', 'POST', "reservations/{$g['id']}/$action", $body, $stale($g)), 'VERSION_CONFLICT');
+        }
+
+        // Estado que no permite la operación.
+        $h = $this->act('mesero', 'cancel', $this->reserve(2, '20:00', '21:00'), ['reason' => 'Ya no viene'])->json('data');
+        $code($this->as('mesero', 'PATCH', "reservations/{$h['id']}", ['notes' => 'x'], ['If-Match' => '"'.$h['version'].'"'] + $this->key()), 'RESERVATION_INVALID_STATE');
+        $code($this->act('mesero', 'confirm', $h), 'RESERVATION_INVALID_STATE');
+        $code($this->act('mesero', 'check-in', $h, ['tableIds' => $this->tableIds(6)]), 'RESERVATION_INVALID_STATE');
+        $code($this->act('mesero', 'cancel', $h, ['reason' => 'Otra vez']), 'RESERVATION_INVALID_STATE');
+
+        // Mesas que no sirven al sentar.
+        $i = $this->act('mesero', 'arrive', $this->confirm($this->reserve(2, '12:30', '14:00')))->json('data');
+        $this->table(6)->update(['status' => RestaurantTable::MAINTENANCE]);
+        $code($this->act('mesero', 'check-in', $i, ['tableIds' => $this->tableIds(6)]), 'TABLE_NOT_AVAILABLE');
+        $code($this->act('mesero', 'check-in', $i, ['tableIds' => $this->tableIds(2, 3)]), 'NO_TABLE_AVAILABLE');
+        $code($this->act('mesero', 'check-in', $i, ['tableIds' => $this->tableIds(3), 'guestCount' => 6]), 'NO_TABLE_AVAILABLE');
+
+        Branch::query()->where('_id', $this->branch->getKey())->update(['status' => Branch::INACTIVE]);
+        $code($this->as('mesero', 'POST', 'reservations', ['startAt' => $this->at('18:00'), 'endAt' => $this->at('19:00'), 'partySize' => 2,
+            'customer' => ['name' => 'Ana', 'phone' => '+523312345678']], $this->key()), 'BRANCH_INACTIVE');
     }
 }

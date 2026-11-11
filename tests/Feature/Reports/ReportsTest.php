@@ -132,4 +132,13 @@ class ReportsTest extends FloorTestCase
         $this->as('admin', 'POST', 'reports/rebuilds', $body, $this->key())->assertStatus(202);
         $this->as('admin', 'GET', 'reports/rebuilds/'.Str::uuid())->assertStatus(404);
     }
+
+    public function test_reconstruir_con_una_clave_ya_usada(): void
+    {
+        $this->staff['admin'] = $this->staffMember('admin@ejemplo.mx', $this->branch, 'ADMIN');
+        $key = $this->key();
+        $this->as('admin', 'POST', 'reports/rebuilds', ['from' => $this->today(), 'to' => $this->today()], $key)->assertStatus(202);
+        $this->as('admin', 'POST', 'reports/rebuilds', ['from' => '2026-01-01', 'to' => $this->today()], $key)
+            ->assertStatus(409)->assertJsonPath('error.code', 'IDEMPOTENCY_KEY_REUSED');
+    }
 }
