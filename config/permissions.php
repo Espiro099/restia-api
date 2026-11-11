@@ -228,7 +228,6 @@ return [
             'reservations.create',
             'reservations.lookup',
             'reservations.mark_no_show',
-            'reservations.override_priority',
             'reservations.read',
             'reservations.update',
             'table_sessions.close',

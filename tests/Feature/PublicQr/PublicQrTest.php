@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\PublicQr;
 
+use App\Models\Branch;
 use App\Models\RestaurantTable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\RateLimiter;
@@ -149,5 +150,14 @@ class PublicQrTest extends FloorTestCase
         $this->visitor('GET', 'context', $token)->assertOk()->assertJsonPath('data.tableNumber', 40);
         // La creación de la mesa no deja el token en la auditoría.
         $this->assertStringNotContainsString($token, json_encode(DB::connection('mongodb')->table('audit_log')->get()));
+    }
+
+    public function test_rotar_con_la_sucursal_inactiva(): void
+    {
+        $table = $this->table(1);
+        $this->token(1);
+        Branch::query()->where('_id', $this->branch->getKey())->update(['status' => Branch::INACTIVE]);
+        $this->as('gerente', 'POST', "tables/{$table->uuid}/qr/rotate", ['reason' => 'Prueba'], ['If-Match' => '"'.$table->fresh()->version.'"'])
+            ->assertStatus(409)->assertJsonPath('error.code', 'BRANCH_INACTIVE');
     }
 }

@@ -19,6 +19,9 @@ Schedule::command('restia:inventory')->everyFiveSeconds()->withoutOverlapping();
 // Reportes: se actualizan desde outbox y atienden reconstrucciones (RP-3). Unos segundos de retraso bastan.
 Schedule::command('restia:reports')->everyFifteenSeconds()->withoutOverlapping();
 
+// Reservas: vencer PENDING (R-7), NO_SHOW automático (R-6) y borrar datos personales a los 12 meses.
+Schedule::command('restia:reservations')->everyMinute()->withoutOverlapping();
+
 // Caja: un turno abierto más de 24 horas genera una alerta (CA-11).
 Schedule::call(fn () => Cash::forgotten())->name('cash-forgotten-shifts')->everyFifteenMinutes()->withoutOverlapping();
 

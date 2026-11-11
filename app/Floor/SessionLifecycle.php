@@ -12,6 +12,7 @@ use App\Models\TableAssignment;
 use App\Models\TableCleaningConfirmation;
 use App\Models\TableSession;
 use App\Models\User;
+use App\Reservations\Reservations;
 use App\Support\Audit;
 use App\Support\Mongo;
 use App\Support\Outbox;
@@ -129,6 +130,9 @@ final class SessionLifecycle
                 throw new DomainConflict('SESSION_HAS_OPEN_CHECKS', ['checkIds' => $open]);
             }
 
+            // R-9: la reserva sentada aquí se completa.
+            Reservations::sessionClosing($s);
+
             return [['status' => TableSession::PENDING_CLEANING, 'close_requested_at' => $now], 'table_session.close_requested', []];
         });
     }
@@ -145,6 +149,9 @@ final class SessionLifecycle
             TableAssignment::query()->where('session_id', new ObjectId($s->getKey()))->where('active', true)
                 ->update(['active' => false, 'closed_at' => $now]);
             Checks::settleOnClose($branchId, $s);
+
+            // R-9: la reserva sentada aquí vuelve a la espera.
+            Reservations::sessionCancelled($s);
 
             return [['status' => TableSession::CANCELLED, 'cancel_reason' => $reason, 'closed_at' => $now], 'table_session.cancelled', []];
         });
