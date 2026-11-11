@@ -256,6 +256,45 @@ Abre un turno en la primera caja activa (o crea "Caja principal"), crea la ruta 
 
 Fallas con `--fail`: `not-sent` (la impresora no recibe nada; se reintenta sola hasta 3 veces), `uncertain` (se corta a media impresión; queda `UNKNOWN`), `crash` (el agente se cae sin reportar; queda `UNKNOWN` al vencer el plazo) y `random` (falla con la probabilidad de `--fail-rate`, 0.3 por omisión). `--once` hace una sola vuelta. Ninguno de estos comandos corre en producción.
 
+## Clientes (fase 6)
+
+| Operación | Ruta | Permiso |
+|---|---|---|
+| Alta | `POST /branches/{branchId}/customers` | `customers.create` |
+| Búsqueda por teléfono o nombre | `POST /branches/{branchId}/customers/search` | `customers.read` |
+| Consulta y edición | `GET`, `PATCH /branches/{branchId}/customers/{customerId}` | `customers.read`, `customers.update` |
+| Anonimizar | `POST /branches/{branchId}/customers/{customerId}/anonymize` | `customers.anonymize` (ADMIN) |
+
+- **Visibilidad (CU-2):** cada sucursal ve solo los clientes con perfil en ella. Registrar el mismo teléfono en otra sucursal crea otra identidad.
+- **Datos:** el perfil guarda notas, preferencias y visitas; un check-in de reserva suma una visita.
+- **Búsqueda (CU-3):** va por `POST` para que el teléfono no quede en URLs. No muestra a los clientes anonimizados.
+- **Auditoría:** nunca guarda el dato completo. Solo deja la inicial del nombre, los últimos 4 dígitos del teléfono, el dominio del correo y si cambiaron las notas.
+- **Anonimizar (CU-4):** reemplaza nombre, teléfono, correo, notas y preferencias, también en las copias de sus reservas. Las facturas no cambian. **Falta validar el alcance con el área legal.**
+
+## Reservas (fase 6)
+
+| Operación | Ruta | Permiso |
+|---|---|---|
+| Disponibilidad | `GET /reservations/availability?startAt=&endAt=&partySize=` | `reservations.availability` |
+| Alta (PENDING) | `POST /reservations` | `reservations.create` |
+| Lista, consulta y edición | `GET /reservations`, `GET`, `PATCH /reservations/{reservationId}` | `reservations.read`, `reservations.update` |
+| Confirmar, llegada, cancelar y no presentado | `POST /reservations/{reservationId}/confirm`, `/arrive`, `/cancel`, `/no-show` | el de cada acción |
+| Sentar y abrir la sesión | `POST /reservations/{reservationId}/check-in` | `reservations.check_in` |
+| Fila de espera | `GET /reservations/waiting-queue` | `reservations.read` |
+| Buscar por código y teléfono | `POST /reservations/lookup` | `reservations.lookup` |
+
+- **Mesas (R-1, R-2):** solo `CONFIRMED` y `ARRIVED_WAITING` apartan mesas. Confirmar elige la opción que deja menos asientos libres: una mesa, o hasta 3 del mismo `combinationGroup`. No toma mesas planeadas en otra reserva que se traslape, ni mesas ocupadas si la reserva empieza en menos de 90 minutos. Sin lugar, responde `RESERVATION_NOT_AVAILABLE`.
+- **Horario (R-3):** sin `reservation_hours` en la sucursal no se aceptan reservas. `restia:demo` la deja de 12:00 a 23:00 todos los días; la gestión de sucursales todavía no existe.
+- **Mesa con reserva próxima (R-5):** abrirla en los 60 minutos previos responde `TABLE_RESERVED_SOON`, con la hora de la reserva. Con `acknowledgeReservation` se abre y la reserva se replanea en otra mesa; si no hay, queda con `planConflict`.
+- **Prioridad (R-8):** al sentar, si otra reserva llegó antes y cabe en esas mesas, responde `RESERVATION_PRIORITY_CONFLICT`. Saltarla exige `reservations.override_priority` (ADMIN y MANAGER) y un motivo, que queda auditado.
+- **Sesión (R-9):** cuando la sesión pasa a limpieza, la reserva queda `COMPLETED`. Si se cancela, la reserva vuelve a la espera.
+- **`restia:reservations`, cada minuto:**
+  - Cancela las `PENDING` que llegan a su hora (R-7).
+  - Marca `NO_SHOW` las confirmadas sin llegada, pasada la tolerancia (R-6).
+  - **Borra nombre, teléfono y notas 12 meses después del fin de la reserva**, según la retención decidida el 2026-11-10.
+- **Contrato pendiente:** una reserva con los datos borrados devuelve `customer.phone` en `null`, pero el contrato lo marca como obligatorio. Hay que hacerlo opcional en el contrato.
+- **Fase 8 (IA):** `reservation-ai`, `policy` y los códigos `RESERVATION_AI_*` llegan con el módulo de IA.
+
 ## QR público (fase 6)
 
 La página del cliente solo ve el menú y avisa que hay alguien en la mesa (QR-1). Nunca ve comandas, cuenta ni estado (QR-2).

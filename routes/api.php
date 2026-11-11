@@ -5,6 +5,7 @@ use App\Http\Controllers\AuditController;
 use App\Http\Controllers\CashController;
 use App\Http\Controllers\CatalogController;
 use App\Http\Controllers\CheckController;
+use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\DeviceController;
 use App\Http\Controllers\FloorController;
 use App\Http\Controllers\InventoryController;
@@ -14,6 +15,7 @@ use App\Http\Controllers\PrintingController;
 use App\Http\Controllers\PrintJobController;
 use App\Http\Controllers\PublicQrController;
 use App\Http\Controllers\ReportController;
+use App\Http\Controllers\ReservationController;
 use App\Http\Controllers\ServiceIdentityController;
 use Illuminate\Support\Facades\Route;
 
@@ -175,6 +177,31 @@ Route::middleware('auth.session')->group(function () {
         Route::put('inventory-counts/{countId}/lines', 'countLines')->middleware('branch:inventory.count');
         Route::post('inventory-counts/{countId}/apply', 'applyCount')->middleware('branch:inventory.apply_count');
         Route::post('inventory-counts/{countId}/cancel', 'cancelCount')->middleware('branch:inventory.apply_count');
+    });
+
+    // Reservas del personal (R-1 a R-12). Las rutas fijas van antes de {reservationId}.
+    Route::controller(ReservationController::class)->prefix('branches/{branchId}/reservations')->group(function () {
+        Route::get('availability', 'availability')->middleware('branch:reservations.availability');
+        Route::post('lookup', 'lookup')->middleware('branch:reservations.lookup');
+        Route::get('waiting-queue', 'queue')->middleware('branch:reservations.read');
+        Route::get('/', 'index')->middleware('branch:reservations.read');
+        Route::post('/', 'create')->middleware('branch:reservations.create');
+        Route::get('{reservationId}', 'show')->middleware('branch:reservations.read');
+        Route::patch('{reservationId}', 'update')->middleware('branch:reservations.update');
+        Route::post('{reservationId}/confirm', 'confirm')->middleware('branch:reservations.confirm');
+        Route::post('{reservationId}/arrive', 'arrive')->middleware('branch:reservations.arrive');
+        Route::post('{reservationId}/check-in', 'checkIn')->middleware('branch:reservations.check_in');
+        Route::post('{reservationId}/cancel', 'cancel')->middleware('branch:reservations.cancel');
+        Route::post('{reservationId}/no-show', 'noShow')->middleware('branch:reservations.mark_no_show');
+    });
+
+    // Clientes (CU-1 a CU-4): cada sucursal ve solo los suyos; la búsqueda va por POST (CU-3).
+    Route::controller(CustomerController::class)->prefix('branches/{branchId}/customers')->group(function () {
+        Route::post('/', 'create')->middleware('branch:customers.create');
+        Route::post('search', 'search')->middleware('branch:customers.read');
+        Route::get('{customerId}', 'show')->middleware('branch:customers.read');
+        Route::patch('{customerId}', 'update')->middleware('branch:customers.update');
+        Route::post('{customerId}/anonymize', 'anonymize')->middleware('branch:customers.anonymize');
     });
 
     // Token QR de una mesa, para imprimirlo o rotarlo (QR-4, QR-12).

@@ -6,10 +6,12 @@ use App\Exceptions\DomainConflict;
 use App\Identity\MobileAuth;
 use App\Models\Branch;
 use App\Models\Membership;
+use App\Models\Reservation;
 use App\Models\RestaurantTable;
 use App\Models\TableAssignment;
 use App\Models\TableSession;
 use App\Models\User;
+use App\Reservations\Reservations;
 use App\Support\Audit;
 use App\Support\Floor;
 use App\Support\Idempotency;
@@ -55,39 +57,11 @@ final class TableSessions
                     throw new DomainConflict('TABLE_ALREADY_ASSIGNED');
                 }
 
-                $now = now();
-                $session = TableSession::query()->create([
-                    'branch_id' => $branchId,
-                    'status' => TableSession::ACTIVE,
-                    'guest_count' => $in['guestCount'],
-                    'responsible_user_id' => $responsible,
-                    'reservation_id' => null,
-                    'membership_version' => 1,
-                    'activity_epoch' => 0,
-                    'business_date' => Floor::businessDate($current, $now),
-                    'opened_by' => $actorId,
-                    'opened_at' => $now,
-                    'close_requested_at' => null,
-                    'closed_at' => null,
-                ]);
-                // El índice parcial deja pasar una sola asignación activa por mesa.
-                foreach ($tables->sortBy('number') as $table) {
-                    TableAssignment::query()->create([
-                        'branch_id' => $branchId,
-                        'table_id' => new ObjectId($table->getKey()),
-                        'session_id' => new ObjectId($session->getKey()),
-                        'phase' => 'SEATED',
-                        'active' => true,
-                        'assigned_at' => $now,
-                    ]);
-                }
-
-                Audit::record('table_session.opened', 'table_session', $session->getKey(), $branchId, $actorId, changes: [
-                    'tables' => $tables->pluck('number')->sort()->values()->all(),
-                    'guestCount' => $in['guestCount'],
+                // R-5: una mesa con reserva próxima se abre solo con confirmación explícita, que queda auditada.
+                Reservations::beforeWalkIn($current, $tables, (bool) ($in['acknowledgeReservation'] ?? false));
+                $session = self::seat($current, $actorId, $tables, (int) $in['guestCount'], $responsible, null, [
                     'acknowledgeReservation' => (bool) ($in['acknowledgeReservation'] ?? false),
                 ]);
-                Outbox::publish('table_session.opened', 'table_session', $session->getKey(), $branchId, ['sessionId' => $session->uuid]);
 
                 return [201, self::present($branch, $session), $session->uuid];
             });
@@ -95,6 +69,50 @@ final class TableSessions
             // Dos aperturas sobre la misma mesa, ya repetida una vez: la otra ganó.
             throw Mongo::isDuplicateKey($e) ? new DomainConflict('TABLE_ALREADY_ASSIGNED') : $e;
         }
+    }
+
+    /**
+     * Crea la sesión y sus asignaciones, con auditoría y outbox. La llaman la apertura normal y el check-in
+     * de una reserva, siempre dentro de su transacción y después de validar las mesas.
+     *
+     * @param  Collection<int, RestaurantTable>  $tables
+     */
+    public static function seat(Branch $branch, ObjectId $actorId, Collection $tables, int $guestCount, ObjectId $responsible, ?ObjectId $reservationId, array $audit = []): TableSession
+    {
+        $branchId = new ObjectId($branch->getKey());
+        $now = now();
+        $session = TableSession::query()->create([
+            'branch_id' => $branchId,
+            'status' => TableSession::ACTIVE,
+            'guest_count' => $guestCount,
+            'responsible_user_id' => $responsible,
+            'reservation_id' => $reservationId,
+            'membership_version' => 1,
+            'activity_epoch' => 0,
+            'business_date' => Floor::businessDate($branch, $now),
+            'opened_by' => $actorId,
+            'opened_at' => $now,
+            'close_requested_at' => null,
+            'closed_at' => null,
+        ]);
+        // El índice parcial deja pasar una sola asignación activa por mesa.
+        foreach ($tables->sortBy('number') as $table) {
+            TableAssignment::query()->create([
+                'branch_id' => $branchId,
+                'table_id' => new ObjectId($table->getKey()),
+                'session_id' => new ObjectId($session->getKey()),
+                'phase' => 'SEATED',
+                'active' => true,
+                'assigned_at' => $now,
+            ]);
+        }
+        Audit::record('table_session.opened', 'table_session', $session->getKey(), $branchId, $actorId, changes: [
+            'tables' => $tables->pluck('number')->sort()->values()->all(),
+            'guestCount' => $guestCount,
+        ] + $audit);
+        Outbox::publish('table_session.opened', 'table_session', $session->getKey(), $branchId, ['sessionId' => $session->uuid]);
+
+        return $session;
     }
 
     /** @return array<string, mixed> */
@@ -112,7 +130,7 @@ final class TableSessions
             'tables' => self::tables($shown, $tables),
             'guestCount' => (int) $s->guest_count,
             'responsibleUserId' => User::query()->find((string) $s->responsible_user_id)?->uuid,
-            'reservationId' => null,
+            'reservationId' => $s->reservation_id ? Reservation::query()->find((string) $s->reservation_id)?->uuid : null,
             'membershipVersion' => (int) $s->membership_version,
             'businessDate' => $s->business_date,
             'openedAt' => self::time($s->opened_at),
