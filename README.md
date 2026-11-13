@@ -269,6 +269,7 @@ Fallas con `--fail`: `not-sent` (la impresora no recibe nada; se reintenta sola 
 - **Datos:** el perfil guarda notas, preferencias y visitas; un check-in de reserva suma una visita.
 - **Búsqueda (CU-3):** va por `POST` para que el teléfono no quede en URLs. No muestra a los clientes anonimizados.
 - **Auditoría:** nunca guarda el dato completo. Solo deja la inicial del nombre, los últimos 4 dígitos del teléfono, el dominio del correo y si cambiaron las notas.
+- **Notas:** `null` o vacío las borra.
 - **Anonimizar (CU-4):** reemplaza nombre, teléfono, correo, notas y preferencias, también en las copias de sus reservas. Las facturas no cambian. **Falta validar el alcance con el área legal.**
 
 ## Reservas (fase 6)
@@ -292,7 +293,7 @@ Fallas con `--fail`: `not-sent` (la impresora no recibe nada; se reintenta sola 
   - Cancela las `PENDING` que llegan a su hora (R-7).
   - Marca `NO_SHOW` las confirmadas sin llegada, pasada la tolerancia (R-6).
   - **Borra nombre, teléfono y notas 12 meses después del fin de la reserva**, según la retención decidida el 2026-11-10.
-- **Contrato pendiente:** una reserva con los datos borrados devuelve `customer.phone` en `null`, pero el contrato lo marca como obligatorio. Hay que hacerlo opcional en el contrato.
+- **Datos borrados:** una reserva con los datos personales borrados devuelve el nombre como "Cliente anonimizado" y `customer.phone` en `null` (`ReservationCustomerRecord` en el contrato).
 - **Fase 8 (IA):** `reservation-ai`, `policy` y los códigos `RESERVATION_AI_*` llegan con el módulo de IA.
 
 ## QR público (fase 6)

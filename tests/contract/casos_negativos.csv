@@ -50,7 +50,6 @@ confirmReservation,POST,/branches/{branchId}/reservations/{reservationId}/confir
 confirmReservation,POST,/branches/{branchId}/reservations/{reservationId}/confirm,409,VERSION_CONFLICT
 confirmReservation,POST,/branches/{branchId}/reservations/{reservationId}/confirm,409,RESERVATION_INVALID_STATE
 confirmReservation,POST,/branches/{branchId}/reservations/{reservationId}/confirm,409,RESERVATION_NOT_AVAILABLE
-confirmReservation,POST,/branches/{branchId}/reservations/{reservationId}/confirm,409,NO_TABLE_AVAILABLE
 confirmReservation,POST,/branches/{branchId}/reservations/{reservationId}/confirm,409,RESERVATION_AI_DISABLED
 registerReservationArrival,POST,/branches/{branchId}/reservations/{reservationId}/arrive,409,IDEMPOTENCY_KEY_REUSED
 registerReservationArrival,POST,/branches/{branchId}/reservations/{reservationId}/arrive,409,VERSION_CONFLICT
