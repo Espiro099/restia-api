@@ -24,6 +24,7 @@
         <env name="MONGODB_URI" value="mongodb://127.0.0.1:27018/?replicaSet=rs-restia"/>
         <env name="MONGODB_DATABASE" value="restia_test"/>
         <env name="MAIL_MAILER" value="array"/>
+        <env name="RESTIA_CHECK_BREACHED_PASSWORDS" value="false"/>
         <env name="QUEUE_CONNECTION" value="sync"/>
         <env name="SESSION_DRIVER" value="array"/>
         <env name="PULSE_ENABLED" value="false"/>

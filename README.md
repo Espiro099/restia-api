@@ -53,7 +53,27 @@ Flujo Android de D-36, ya implementado:
 | Sesiones propias | `GET /auth/sessions`, `POST /auth/sessions/{sessionId}/revoke` |
 | Dispositivos | `GET /branches/{branchId}/devices`, `POST .../{deviceId}/block` y `/retire` |
 
-Falta: login Web con cookie y CSRF, revocar sesiones de otro usuario, contraseñas (U-2), altas de empleados y gestión de sucursales.
+Empleados y contraseñas (U-1 a U-5, A-10):
+
+| Operación | Ruta | Permiso |
+|---|---|---|
+| Empleados de la sucursal | `GET /branches/{branchId}/members`, `GET .../{userId}` | `members.read` |
+| Alta, cambio de rol y baja | `POST /branches/{branchId}/members`, `PATCH .../{userId}`, `POST .../{userId}/revoke` | `members.manage` |
+| Enlace para definir la contraseña | `POST /users/{userId}/password-setup-link` | `users.manage` |
+| Desactivar y reactivar | `POST /users/{userId}/deactivate`, `/activate` | `users.manage` |
+| Revocar todas sus sesiones | `POST /users/{userId}/sessions/revoke` | `users.sessions.revoke` |
+| Cambiar la propia, recuperar y definir | `POST /auth/password/change`, `/auth/password/forgot`, `/auth/password/reset` | Sesión propia, ninguno, enlace |
+
+- **Alta:** crea el usuario si el correo no existe, en estado `INVITED`, y devuelve una sola vez un enlace de 72 h para definir la contraseña. Con la contraseña definida pasa a `ACTIVE`. Si el correo ya existe, solo agrega la membresía, sin enlace.
+- **Quién gestiona a quién (U-4):** MANAGER solo da de alta, cambia o revoca a WAITER y KITCHEN. Nadie se cambia a sí mismo, y cada sucursal conserva un ADMIN activo (`LAST_BRANCH_ADMIN`).
+- **Usuario global:** desactivar, reactivar y generar el enlace exigen ser ADMIN en todas las sucursales del usuario. Revocar sus sesiones basta con el permiso en una de ellas. Desactivar revoca sus sesiones.
+- **Contraseñas:**
+  - Mínimo 12 caracteres y, con `RESTIA_CHECK_BREACHED_PASSWORDS`, se rechazan las filtradas (Have I Been Pwned por k-anonimato; apagado en pruebas).
+  - Los enlaces son de un solo uso, se guardan como hash y llevan el token en el fragmento de la URL (`RESTIA_WEB_URL/contrasena#<token>`).
+  - "Olvidé mi contraseña" siempre responde 204 y manda un enlace de 60 minutos por correo.
+  - Cambiar la propia revoca las demás sesiones; definirla con un enlace las revoca todas.
+
+Falta: login Web con cookie y CSRF y gestión de sucursales.
 
 Cada ruta autenticada pasa por dos middleware:
 
