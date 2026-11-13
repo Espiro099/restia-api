@@ -64,7 +64,7 @@ Reúne los 102 códigos que el contrato puede devolver, según el formato `Error
 | `INVOICE_REPLACEMENT_REQUIRED` | 409 | Nuevo | 1 | El motivo 01 requiere una factura sustituta timbrada. | Mostrar el motivo; corregir la situación antes de reintentar |
 | `LAST_BRANCH_ADMIN` | 409 | Nuevo | 3 | La sucursal debe conservar al menos un ADMIN. | Mostrar el motivo; corregir la situación antes de reintentar |
 | `MEMBERSHIP_ALREADY_EXISTS` | 409 | Nuevo | 1 | El empleado ya pertenece a esta sucursal. | Mostrar el motivo; corregir la situación antes de reintentar |
-| `NO_TABLE_AVAILABLE` | 409 | Documento maestro | 3 | No hay una mesa compatible disponible. | Mostrar el motivo; corregir la situación antes de reintentar |
+| `NO_TABLE_AVAILABLE` | 409 | Documento maestro | 2 | No hay una mesa compatible disponible. | Mostrar el motivo; corregir la situación antes de reintentar |
 | `ORDER_UNIT_INVALID_STATE` | 409 | Documento maestro | 4 | La unidad no permite esta operación en su estado actual. | Volver a leer el estado; no reintentar igual |
 | `ORDER_UNIT_PAID` | 409 | Nuevo | 1 | La unidad ya fue pagada. | Mostrar el motivo; corregir la situación antes de reintentar |
 | `PASSWORD_TOKEN_INVALID` | 409 | Nuevo | 1 | El enlace no es válido o ya venció. | Mostrar el motivo; corregir la situación antes de reintentar |

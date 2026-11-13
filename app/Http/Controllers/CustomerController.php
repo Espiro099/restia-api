@@ -22,7 +22,8 @@ class CustomerController extends Controller
         'name' => ['string', 'min:1', 'max:120'],
         'phone' => ['string', self::PHONE],
         'email' => ['string', 'email', 'max:254'],
-        'notes' => ['string', 'max:500'],
+        // null o vacío borra las notas; Laravel convierte "" en null.
+        'notes' => ['nullable', 'string', 'max:500'],
         'preferences' => ['array', 'list', 'max:50'],
         'preferences.*' => ['string', 'max:60'],
     ];

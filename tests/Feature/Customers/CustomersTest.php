@@ -35,6 +35,10 @@ class CustomersTest extends FloorTestCase
         $this->as('mesero', 'PATCH', "customers/{$ana['id']}", ['phone' => '+523311112222', 'notes' => 'Prefiere ventana'], ['If-Match' => '"1"'])->assertOk()
             ->assertHeader('ETag', '"2"')->assertJsonPath('data.phone', '+523311112222')->assertJsonPath('data.profile.notes', 'Prefiere ventana');
         $this->as('mesero', 'PATCH', "customers/{$ana['id']}", ['name' => 'Ana'], ['If-Match' => '"1"'])->assertStatus(409)->assertJsonPath('error.code', 'VERSION_CONFLICT');
+        // Vacío o null borra las notas.
+        $this->as('mesero', 'PATCH', "customers/{$ana['id']}", ['notes' => ''], ['If-Match' => '"2"'])->assertOk()->assertJsonPath('data.profile.notes', null);
+        $this->as('mesero', 'PATCH', "customers/{$ana['id']}", ['notes' => 'Ventana'], ['If-Match' => '"3"'])->assertOk();
+        $this->as('mesero', 'PATCH', "customers/{$ana['id']}", ['notes' => null], ['If-Match' => '"4"'])->assertOk()->assertJsonPath('data.profile.notes', null);
 
         // La auditoría nunca guarda el dato completo.
         $audit = json_encode(DB::connection('mongodb')->table('audit_log')->where('entity_type', 'customer')->get(), JSON_UNESCAPED_UNICODE);

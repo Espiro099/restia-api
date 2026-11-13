@@ -2581,7 +2581,6 @@ paths:
         - VERSION_CONFLICT
         - RESERVATION_INVALID_STATE
         - RESERVATION_NOT_AVAILABLE
-        - NO_TABLE_AVAILABLE
         - RESERVATION_AI_DISABLED
       parameters:
       - $ref: '#/components/parameters/RequestId'
@@ -15756,6 +15755,29 @@ components:
           type: string
           pattern: ^\+[1-9][0-9]{7,14}$
           description: Formato E.164
+    ReservationCustomerRecord:
+      type: object
+      description: Copia del cliente en la reserva (R-11). Nombre y teléfono se borran 12 meses después
+        del fin de la reserva o al anonimizar al cliente; entonces el nombre queda como "Cliente
+        anonimizado" y el teléfono en null.
+      required:
+      - name
+      - phone
+      additionalProperties: false
+      properties:
+        customerId:
+          type: string
+          format: uuid
+          nullable: true
+        name:
+          type: string
+          minLength: 1
+          maxLength: 120
+        phone:
+          type: string
+          nullable: true
+          pattern: ^\+[1-9][0-9]{7,14}$
+          description: Formato E.164; null una vez borrados los datos personales
     Reservation:
       type: object
       required:
@@ -15788,7 +15810,7 @@ components:
           minimum: 1
           maximum: 200
         customer:
-          $ref: '#/components/schemas/ReservationCustomer'
+          $ref: '#/components/schemas/ReservationCustomerRecord'
         source:
           type: string
           enum:
@@ -20418,7 +20440,9 @@ components:
           maxLength: 254
         notes:
           type: string
+          nullable: true
           maxLength: 500
+          description: null o vacío borra las notas
         preferences:
           type: array
           maxItems: 50
@@ -20444,7 +20468,9 @@ components:
           maxLength: 254
         notes:
           type: string
+          nullable: true
           maxLength: 500
+          description: null o vacío borra las notas
         preferences:
           type: array
           maxItems: 50
