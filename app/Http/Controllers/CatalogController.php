@@ -32,9 +32,6 @@ class CatalogController extends Controller
 
     private const NAME = ['string', 'min:1', 'max:120'];
 
-    // Hasta dos decimales con contenido: la moneda de la sucursal no tiene fracciones menores al centavo.
-    private const AMOUNT = 'regex:/^\d{1,12}(\.\d{1,2}0{0,2})?$/';
-
     // ---------------------------------------------------------------- Estaciones
 
     public function stations(Request $request): JsonResponse
@@ -230,16 +227,6 @@ class CatalogController extends Controller
     private function tableResponse(Branch $branch, RestaurantTable $t, int $status = 200): JsonResponse
     {
         return $this->one(Tables::present($branch, collect([$t]))[0], $t, $status);
-    }
-
-    /** @return array<string, mixed> */
-    private function money(string $field, bool $required, bool $signed): array
-    {
-        return [
-            $field => [$required ? 'required' : 'sometimes', 'array:amount,currency'],
-            "$field.amount" => [$required ? 'required' : "required_with:$field", 'string', $signed ? 'regex:/^-?\d{1,12}(\.\d{1,2}0{0,2})?$/' : self::AMOUNT],
-            "$field.currency" => [$required ? 'required' : "required_with:$field", 'string', Rule::in([Floor::CURRENCY])],
-        ];
     }
 
     /** @return array<string, mixed> */

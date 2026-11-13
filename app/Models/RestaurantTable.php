@@ -24,5 +24,6 @@ class RestaurantTable extends Document
         'branch_id' => ObjectId::class,
         'number' => 'integer',
         'capacity' => 'integer',
+        'previous_qr_expires_at' => 'datetime',
     ];
 }

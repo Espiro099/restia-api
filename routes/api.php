@@ -1,14 +1,21 @@
 <?php
 
 use App\Http\Controllers\AccountController;
+use App\Http\Controllers\AuditController;
+use App\Http\Controllers\CashController;
 use App\Http\Controllers\CatalogController;
 use App\Http\Controllers\CheckController;
+use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\DeviceController;
 use App\Http\Controllers\FloorController;
 use App\Http\Controllers\InventoryController;
 use App\Http\Controllers\MobileAuthController;
+use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\PrintingController;
 use App\Http\Controllers\PrintJobController;
+use App\Http\Controllers\PublicQrController;
+use App\Http\Controllers\ReportController;
+use App\Http\Controllers\ReservationController;
 use App\Http\Controllers\ServiceIdentityController;
 use Illuminate\Support\Facades\Route;
 
@@ -20,6 +27,13 @@ Route::prefix('auth/mobile')->controller(MobileAuthController::class)->group(fun
     Route::post('enroll', 'enroll');
     Route::post('login', 'login');
     Route::post('refresh', 'refresh');
+});
+
+// Public QR (QR-1 a QR-12): el token del QR en X-QR-Token es la única credencial. Solo menú y presencia.
+Route::controller(PublicQrController::class)->prefix('public')->middleware('qr')->group(function () {
+    Route::get('context', 'context');
+    Route::get('menu', 'menu');
+    Route::post('presence', 'presence');
 });
 
 Route::middleware('auth.session')->group(function () {
@@ -89,6 +103,39 @@ Route::middleware('auth.session')->group(function () {
         Route::put('products/{productId}/routes', 'productRoutes')->middleware('branch:menu.manage');
     });
 
+    // Caja (Decisiones_Cash). Las lecturas deciden los montos según cash.read o cash.read_open (CA-13).
+    Route::controller(CashController::class)->prefix('branches/{branchId}')->group(function () {
+        Route::get('cash-registers', 'registers')->middleware('branch');
+        Route::post('cash-registers', 'createRegister')->middleware('branch:cash.manage_registers');
+        Route::get('cash-registers/{cashRegisterId}', 'register')->middleware('branch');
+        Route::patch('cash-registers/{cashRegisterId}', 'updateRegister')->middleware('branch:cash.manage_registers');
+        Route::post('cash-registers/{cashRegisterId}/status', 'registerStatus')->middleware('branch:cash.manage_registers');
+
+        Route::get('cash-shifts', 'shifts')->middleware('branch');
+        Route::post('cash-shifts', 'open')->middleware('branch:cash.open');
+        Route::get('cash-shifts/{cashShiftId}', 'shift')->middleware('branch');
+        Route::get('cash-shifts/{cashShiftId}/summary', 'summary')->middleware('branch:cash.read');
+        Route::get('cash-shifts/{cashShiftId}/movements', 'movements')->middleware('branch:cash.read');
+        Route::post('cash-shifts/{cashShiftId}/movements', 'createMovement')->middleware('branch:cash.move');
+        Route::post('cash-shifts/{cashShiftId}/start-closing', 'startClosing')->middleware('branch:cash.close');
+        Route::post('cash-shifts/{cashShiftId}/cancel-closing', 'cancelClosing')->middleware('branch:cash.close');
+        Route::post('cash-shifts/{cashShiftId}/close', 'close')->middleware('branch:cash.close');
+    });
+
+    // Pagos y reembolsos (Decisiones_Payments).
+    Route::controller(PaymentController::class)->prefix('branches/{branchId}')->group(function () {
+        Route::get('payments', 'index')->middleware('branch:payments.read');
+        Route::post('payments', 'create')->middleware('branch:payments.create');
+        Route::get('payments/{paymentId}', 'show')->middleware('branch:payments.read');
+        Route::post('payments/{paymentId}/result', 'result')->middleware('branch:payments.record_result');
+        Route::post('payments/{paymentId}/reconcile', 'reconcile')->middleware('branch:payments.reconcile');
+        Route::post('payments/{paymentId}/refunds', 'createRefund')->middleware('branch:refunds.create');
+        Route::get('refunds', 'refunds')->middleware('branch:refunds.read');
+        Route::get('refunds/{refundId}', 'refund')->middleware('branch:refunds.read');
+        Route::post('refunds/{refundId}/result', 'refundResult')->middleware('branch:refunds.record_result');
+        Route::post('refunds/{refundId}/reconcile', 'refundReconcile')->middleware('branch:refunds.reconcile');
+    });
+
     // Cuentas (Decisiones_Checks). Reabrir y dar cortesías admiten un token de aprobación (C-9).
     Route::controller(CheckController::class)->prefix('branches/{branchId}/checks')->group(function () {
         Route::get('/', 'index')->middleware('branch:checks.read');
@@ -117,9 +164,61 @@ Route::middleware('auth.session')->group(function () {
         Route::get('products/{productId}/recipes/{recipeVersion}', 'recipe')->middleware('branch:recipes.read');
 
         Route::get('inventory-movements', 'movements')->middleware('branch:inventory.read');
-        // Recepciones y conteos llegan en la fase 5; un ajuste sirve para cargar el stock inicial.
+        // El permiso depende del tipo: inventory.adjust o inventory.record_waste.
         Route::post('inventory-movements', 'createMovement')->middleware('branch');
+
+        Route::get('inventory-receipts', 'receipts')->middleware('branch:inventory.read');
+        Route::post('inventory-receipts', 'createReceipt')->middleware('branch:inventory.receive');
+        Route::get('inventory-receipts/{receiptId}', 'receipt')->middleware('branch:inventory.read');
+
+        Route::get('inventory-counts', 'counts')->middleware('branch:inventory.read');
+        Route::post('inventory-counts', 'createCount')->middleware('branch:inventory.count');
+        Route::get('inventory-counts/{countId}', 'count')->middleware('branch:inventory.read');
+        Route::put('inventory-counts/{countId}/lines', 'countLines')->middleware('branch:inventory.count');
+        Route::post('inventory-counts/{countId}/apply', 'applyCount')->middleware('branch:inventory.apply_count');
+        Route::post('inventory-counts/{countId}/cancel', 'cancelCount')->middleware('branch:inventory.apply_count');
     });
+
+    // Reservas del personal (R-1 a R-12). Las rutas fijas van antes de {reservationId}.
+    Route::controller(ReservationController::class)->prefix('branches/{branchId}/reservations')->group(function () {
+        Route::get('availability', 'availability')->middleware('branch:reservations.availability');
+        Route::post('lookup', 'lookup')->middleware('branch:reservations.lookup');
+        Route::get('waiting-queue', 'queue')->middleware('branch:reservations.read');
+        Route::get('/', 'index')->middleware('branch:reservations.read');
+        Route::post('/', 'create')->middleware('branch:reservations.create');
+        Route::get('{reservationId}', 'show')->middleware('branch:reservations.read');
+        Route::patch('{reservationId}', 'update')->middleware('branch:reservations.update');
+        Route::post('{reservationId}/confirm', 'confirm')->middleware('branch:reservations.confirm');
+        Route::post('{reservationId}/arrive', 'arrive')->middleware('branch:reservations.arrive');
+        Route::post('{reservationId}/check-in', 'checkIn')->middleware('branch:reservations.check_in');
+        Route::post('{reservationId}/cancel', 'cancel')->middleware('branch:reservations.cancel');
+        Route::post('{reservationId}/no-show', 'noShow')->middleware('branch:reservations.mark_no_show');
+    });
+
+    // Clientes (CU-1 a CU-4): cada sucursal ve solo los suyos; la búsqueda va por POST (CU-3).
+    Route::controller(CustomerController::class)->prefix('branches/{branchId}/customers')->group(function () {
+        Route::post('/', 'create')->middleware('branch:customers.create');
+        Route::post('search', 'search')->middleware('branch:customers.read');
+        Route::get('{customerId}', 'show')->middleware('branch:customers.read');
+        Route::patch('{customerId}', 'update')->middleware('branch:customers.update');
+        Route::post('{customerId}/anonymize', 'anonymize')->middleware('branch:customers.anonymize');
+    });
+
+    // Token QR de una mesa, para imprimirlo o rotarlo (QR-4, QR-12).
+    Route::get('branches/{branchId}/tables/{tableId}/qr', [PublicQrController::class, 'show'])->middleware('branch:tables.qr_read');
+    Route::post('branches/{branchId}/tables/{tableId}/qr/rotate', [PublicQrController::class, 'rotate'])->middleware('branch:tables.qr_rotate');
+
+    // Reportes (RP-1 a RP-3): proyecciones por día; la reconstrucción corre con restia:reports.
+    Route::controller(ReportController::class)->prefix('branches/{branchId}/reports')->group(function () {
+        Route::get('daily-sales', 'dailySales')->middleware('branch:reports.read');
+        Route::get('hourly-occupancy', 'hourlyOccupancy')->middleware('branch:reports.read');
+        Route::post('rebuilds', 'rebuild')->middleware('branch:reports.rebuild');
+        Route::get('rebuilds/{rebuildId}', 'rebuildStatus')->middleware('branch:reports.rebuild');
+    });
+
+    // Auditoría (AU-1): solo lectura. La global incluye lo que no es de ninguna sucursal.
+    Route::get('branches/{branchId}/audit-log', [AuditController::class, 'branch'])->middleware('branch:audit.read');
+    Route::get('audit-log', [AuditController::class, 'global'])->middleware('anybranch:audit.read_global');
 
     // Identidades de servicio (D-36, sección 11): recurso global, visible por sucursal administrada.
     Route::controller(ServiceIdentityController::class)->prefix('service-identities')->middleware('anybranch:service_identities.manage')->group(function () {

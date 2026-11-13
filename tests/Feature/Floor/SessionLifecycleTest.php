@@ -69,6 +69,9 @@ class SessionLifecycleTest extends FloorTestCase
         $this->transition('cocina', 'START', $all)->assertOk();
         $this->transition('cocina', 'READY', $this->bump($all))->assertOk();
         $this->transition('mesero', 'DELIVER', $this->bump($this->bump($all)))->assertOk();
+        // T-4: además, la cuenta debe estar pagada.
+        $this->act('mesero', $s['id'], 'close', 1)->assertStatus(409)->assertJsonPath('error.code', 'SESSION_HAS_OPEN_CHECKS');
+        $this->payAll($s['id']);
         $this->act('mesero', $s['id'], 'close', 1)->assertOk();
         // Cerrada, ya no recibe comandas.
         $this->as('mesero', 'POST', 'orders', $this->round($s['id']), $this->key())->assertStatus(409)->assertJsonPath('error.code', 'SESSION_NOT_ACTIVE');

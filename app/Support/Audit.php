@@ -4,6 +4,7 @@ namespace App\Support;
 
 use App\Http\Middleware\AssignRequestId;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use MongoDB\BSON\ObjectId;
 use MongoDB\BSON\UTCDateTime;
 
@@ -25,6 +26,7 @@ final class Audit
         array $changes = [],
     ): void {
         DB::connection('mongodb')->table('audit_log')->insert([
+            'uuid' => (string) Str::uuid(),
             'branch_id' => self::oid($branchId),
             'actor_type' => $actorId === null ? 'SYSTEM' : $actorType,
             'actor_id' => self::oid($actorId),

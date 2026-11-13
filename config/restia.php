@@ -41,6 +41,10 @@ return [
         // Al rotar, el token anterior sigue valiendo este tiempo, para desplegar sin cortes.
         'rotation_grace_days' => 7,
     ],
+    // Pagos (Decisiones_Payments): un PENDING sin resultado pasa a UNKNOWN tras este tiempo (P-4).
+    'payments' => [
+        'pending_minutes' => 15,
+    ],
     'printing' => [
         'poll_interval_seconds' => 3,
         // PR-5: plazo de un reclamo; `start` lo renueva.
@@ -53,5 +57,19 @@ return [
         'ticket_expiry_minutes' => 15,
         // Sin latido por este tiempo se publica print_agent.offline.
         'agent_offline_seconds' => 120,
+    ],
+    // Public QR (Decisiones_Public_QR). El QR codifica `<url>/m#<token>` (QR-5).
+    'public' => [
+        'url' => env('RESTIA_PUBLIC_URL', 'http://127.0.0.1:5173'),
+        // QR-4: el token anterior sigue sirviendo este tiempo después de rotar.
+        'previous_token_days' => 7,
+        // QR-8: una señal de presencia marca la mesa como posible ocupación por este tiempo.
+        'presence_minutes' => 10,
+        // QR-9, valores iniciales por minuto; falta medirlos con el wifi del restaurante (tarea 37).
+        'limits' => [
+            'reads_per_ip' => 60,
+            'presence_per_token' => 6,
+            'invalid_per_ip' => 20,
+        ],
     ],
 ];

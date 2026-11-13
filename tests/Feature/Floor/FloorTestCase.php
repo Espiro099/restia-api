@@ -103,6 +103,33 @@ abstract class FloorTestCase extends IdentityTestCase
         return $this->as($who, 'POST', 'order-units/transitions', $body, $this->key() + $headers);
     }
 
+    /** Turno de caja abierto por el gerente, para cobrar en las pruebas. */
+    protected function cashShift(): string
+    {
+        $open = $this->as('gerente', 'GET', 'cash-shifts?status=OPEN')->json('data.0.id');
+        if ($open) {
+            return $open;
+        }
+        $register = $this->as('gerente', 'POST', 'cash-registers', ['code' => 'CAJA-PRUEBA', 'name' => 'Caja de pruebas'])->assertCreated()->json('data.id');
+
+        return $this->as('gerente', 'POST', 'cash-shifts', ['cashRegisterId' => $register, 'openingAmount' => ['amount' => '0', 'currency' => 'MXN']], $this->key())
+            ->assertCreated()->json('data.id');
+    }
+
+    /** Cobra en efectivo el saldo de cada cuenta pendiente de la sesión. */
+    protected function payAll(string $session): void
+    {
+        $shift = $this->cashShift();
+        foreach ($this->as('mesero', 'GET', "checks?sessionId=$session")->json('data') as $check) {
+            if (in_array($check['status'], ['OPEN', 'REQUESTED', 'PARTIALLY_PAID'], true) && $check['balance']['amount'] !== '0.00') {
+                $amount = $check['balance'];
+                $this->as('mesero', 'POST', 'payments', [
+                    'checkId' => $check['id'], 'cashShiftId' => $shift, 'method' => 'CASH', 'amount' => $amount, 'amountTendered' => $amount,
+                ], $this->key())->assertCreated();
+            }
+        }
+    }
+
     /** @param list<array{id: string, version: int}> $units */
     protected function bump(array $units): array
     {

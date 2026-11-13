@@ -12,6 +12,7 @@ use App\Models\TableAssignment;
 use App\Models\TableCleaningConfirmation;
 use App\Models\TableSession;
 use App\Models\User;
+use App\Reservations\Reservations;
 use App\Support\Audit;
 use App\Support\Mongo;
 use App\Support\Outbox;
@@ -110,7 +111,7 @@ final class SessionLifecycle
         });
     }
 
-    /** T-4: sin unidades por terminar. Cada mesa queda en limpieza; la sesión se cierra al limpiar la última. */
+    /** T-4: sin unidades por terminar y con las cuentas liquidadas. Cada mesa queda en limpieza; la sesión se cierra al limpiar la última. */
     public static function close(Branch $branch, TableSession $session, User $actor, int $version): TableSession
     {
         return self::change($branch, $session, $actor, $version, function (TableSession $s, ObjectId $branchId, $now) {
@@ -121,8 +122,16 @@ final class SessionLifecycle
             foreach (self::assignments($s)->where('phase', self::SEATED) as $assignment) {
                 self::startCleaning($branchId, $s, $assignment, (int) $s->membership_version);
             }
-            // C-8: las cuentas sin unidades se cancelan y las de total 0 quedan PAID.
+            // C-8: las cuentas sin unidades se cancelan y las de total 0 quedan PAID. T-4: las demás
+            // deben estar pagadas, canceladas o reembolsadas.
             Checks::settleOnClose($branchId, $s);
+            $open = Checks::unsettled($branchId, $s);
+            if ($open) {
+                throw new DomainConflict('SESSION_HAS_OPEN_CHECKS', ['checkIds' => $open]);
+            }
+
+            // R-9: la reserva sentada aquí se completa.
+            Reservations::sessionClosing($s);
 
             return [['status' => TableSession::PENDING_CLEANING, 'close_requested_at' => $now], 'table_session.close_requested', []];
         });
@@ -140,6 +149,9 @@ final class SessionLifecycle
             TableAssignment::query()->where('session_id', new ObjectId($s->getKey()))->where('active', true)
                 ->update(['active' => false, 'closed_at' => $now]);
             Checks::settleOnClose($branchId, $s);
+
+            // R-9: la reserva sentada aquí vuelve a la espera.
+            Reservations::sessionCancelled($s);
 
             return [['status' => TableSession::CANCELLED, 'cancel_reason' => $reason, 'closed_at' => $now], 'table_session.cancelled', []];
         });

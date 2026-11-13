@@ -6,6 +6,7 @@ use App\Models\Printer;
 use App\Models\PrintJob;
 use App\Models\Station;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Illuminate\Testing\TestResponse;
 use Tests\Feature\Floor\FloorTestCase;
 
@@ -255,5 +256,65 @@ class PrintJobsTest extends FloorTestCase
         $this->travel(3)->minutes();
         $this->work();
         $this->assertSame(2, $this->events('print_agent.offline'));
+    }
+
+    public function test_precuenta_recibo_y_reporte_de_caja(): void
+    {
+        $this->order();
+        $session = $this->as('mesero', 'GET', 'table-sessions')->json('data.0.id');
+        $check = $this->as('mesero', 'GET', "checks?sessionId=$session")->json('data.0');
+        $text = fn (string $id) => implode("\n", array_map(fn ($l) => trim(($l['text'] ?? '').' '.($l['right'] ?? '')), $this->job($id)->document));
+
+        // Sin una ruta para el tipo no hay a dónde mandarlo.
+        $this->as('mesero', 'POST', 'print-jobs', ['type' => 'PRE_CHECK', 'sourceId' => $check['id']], $this->key())
+            ->assertStatus(409)->assertJsonPath('error.code', 'PRINT_ROUTE_NOT_CONFIGURED');
+        $route = $this->as('gerente', 'POST', 'print-stations', [
+            'code' => 'CAJA', 'name' => 'Caja', 'jobTypes' => ['PRE_CHECK', 'PAYMENT_RECEIPT', 'CASH_SHIFT_REPORT'], 'printerId' => $this->printers['BARRA'],
+        ])->assertCreated()->json('data.id');
+        $kitchenRoute = collect($this->as('gerente', 'GET', 'print-stations')->json('data'))->firstWhere('code', 'COMANDA-COCINA')['id'];
+
+        $this->as('mesero', 'POST', 'print-jobs', ['type' => 'PRE_CHECK', 'sourceId' => (string) Str::uuid()], $this->key())->assertStatus(422);
+        $this->as('mesero', 'POST', 'print-jobs', ['type' => 'PRE_CHECK', 'sourceId' => $check['id'], 'printStationId' => $kitchenRoute], $this->key())->assertStatus(422);
+        $pre = $this->as('mesero', 'POST', 'print-jobs', ['type' => 'PRE_CHECK', 'sourceId' => $check['id'], 'printStationId' => $route], $this->key())->assertCreated()
+            ->assertJsonPath('data.priority', 'NORMAL')->assertJsonPath('data.sourceType', 'check')->assertJsonPath('data.sourceId', $check['id'])
+            ->assertJsonPath('data.printerId', $this->printers['BARRA'])->assertJsonPath('data.printStationId', $route)->json('data');
+        $doc = $text($pre['id']);
+        $this->assertStringContainsString('PRECUENTA', $doc);
+        $this->assertStringContainsString('TOTAL $'.number_format((float) $check['total']['amount'], 2), $doc);
+        $this->assertStringContainsString('2 x ', $doc);
+
+        // Un recibo solo existe para un pago confirmado, y no lleva datos de la tarjeta más allá de la marca.
+        $shift = $this->cashShift();
+        $half = bcdiv($check['balance']['amount'], '2', 2);
+        $card = $this->as('mesero', 'POST', 'payments', [
+            'checkId' => $check['id'], 'cashShiftId' => $shift, 'method' => 'CARD_CREDIT', 'amount' => ['amount' => $half, 'currency' => 'MXN'],
+            'tip' => ['amount' => '20.00', 'currency' => 'MXN'],
+        ], $this->key())->assertCreated()->json('data');
+        $this->as('mesero', 'POST', 'print-jobs', ['type' => 'PAYMENT_RECEIPT', 'sourceId' => $card['id']], $this->key())->assertStatus(422);
+        $this->as('mesero', 'POST', "payments/{$card['id']}/result", [
+            'outcome' => 'CONFIRMED', 'reference' => 'TERM-1', 'card' => ['brand' => 'VISA', 'last4' => '4242', 'authCode' => 'A1B2'],
+        ], ['If-Match' => '"1"'] + $this->key())->assertOk();
+        $receipt = $this->as('mesero', 'POST', 'print-jobs', ['type' => 'PAYMENT_RECEIPT', 'sourceId' => $card['id']], $this->key())->assertCreated()
+            ->assertJsonPath('data.sourceType', 'payment')->json('data');
+        $doc = $text($receipt['id']);
+        $this->assertStringContainsString('Tarjeta de crédito VISA', $doc);
+        $this->assertStringContainsString('Propina $20.00', $doc);
+        $this->assertStringContainsString('no es un comprobante fiscal', $doc);
+        $this->assertStringNotContainsString('4242', $doc);
+        $this->assertStringNotContainsString('A1B2', $doc);
+
+        // El reporte de caja lleva importes: exige cash.read. Con el turno abierto sale como parcial.
+        $this->as('mesero', 'POST', 'print-jobs', ['type' => 'CASH_SHIFT_REPORT', 'sourceId' => $shift], $this->key())->assertStatus(403);
+        $report = $this->as('gerente', 'POST', 'print-jobs', ['type' => 'CASH_SHIFT_REPORT', 'sourceId' => $shift], $this->key())->assertCreated()
+            ->assertJsonPath('data.priority', 'LOW')->assertJsonPath('data.sourceType', 'cash_shift')->json('data');
+        $doc = $text($report['id']);
+        $this->assertStringContainsString('PARCIAL', $doc);
+        $this->assertStringContainsString('Ventas $'.number_format((float) $half, 2), $doc);
+        $this->assertStringContainsString('Propinas $20.00', $doc);
+
+        // El agente los recibe como cualquier otro trabajo.
+        $claimed = collect($this->agentCall('POST', 'jobs/claim', ['limit' => 10])->assertOk()->json('data'))->pluck('job.id')->all();
+        $this->assertContains($pre['id'], $claimed);
+        $this->assertSame(3, $this->auditCount('print_job.requested'));
     }
 }

@@ -92,9 +92,9 @@ final class MobileAuth
                     'enrolled_at' => $now,
                     'last_seen_at' => null,
                 ]);
-                Audit::record('device.enrolled', 'device', $device->getKey(), $branch->getKey(), $device->getKey(), 'DEVICE', changes: [
+                // Quien da de alta es el gerente que emitió el código; el dispositivo todavía no es un actor (AU-1).
+                Audit::record('device.enrolled', 'device', $device->getKey(), $branch->getKey(), $row->created_by, changes: [
                     'displayName' => $displayName,
-                    'enrolledBy' => (string) $row->created_by,
                 ]);
                 Outbox::publish('device.enrolled', 'device', $device->getKey(), $branch->getKey(), ['deviceId' => $device->uuid]);
 

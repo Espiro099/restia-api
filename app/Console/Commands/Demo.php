@@ -10,6 +10,7 @@ use App\Models\ProductPreparationRoute;
 use App\Models\RestaurantTable;
 use App\Models\Station;
 use App\Models\User;
+use App\PublicQr\PublicQr;
 use App\Support\Floor;
 use App\Support\Mongo;
 use Illuminate\Console\Command;
@@ -58,8 +59,15 @@ class Demo extends Command
         }
 
         Mongo::transaction(function () use ($branchId, $password) {
-            foreach ([[1, 4, 'Terraza'], [2, 4, 'Terraza'], [3, 2, 'Salón'], [4, 6, 'Salón'], [5, 2, 'Barra'], [6, 8, 'Salón']] as [$n, $cap, $zone]) {
-                RestaurantTable::query()->create(['branch_id' => $branchId, 'number' => $n, 'capacity' => $cap, 'zone' => $zone, 'status' => RestaurantTable::ACTIVE, 'combination_group' => null]);
+            // R-3: sin horario no se aceptan reservas. Todos los días de 12:00 a 23:00.
+            Branch::query()->where('_id', $branchId)->update([
+                'reservation_hours' => array_map(fn ($d) => ['dayOfWeek' => $d, 'opensAt' => '12:00', 'closesAt' => '23:00'], range(1, 7)),
+                'reservation_no_show_tolerance_minutes' => 15,
+            ]);
+            // Las de la terraza se juntan entre sí, y la 3 con la 4 en el salón (R-2).
+            foreach ([[1, 4, 'Terraza', 'TERRAZA'], [2, 4, 'Terraza', 'TERRAZA'], [3, 2, 'Salón', 'SALON'], [4, 6, 'Salón', 'SALON'], [5, 2, 'Barra', null], [6, 8, 'Salón', null]] as [$n, $cap, $zone, $group]) {
+                RestaurantTable::query()->create(['branch_id' => $branchId, 'number' => $n, 'capacity' => $cap, 'zone' => $zone, 'status' => RestaurantTable::ACTIVE,
+                    'combination_group' => $group, 'qr_token' => PublicQr::newToken()]);
             }
             $kitchen = Station::query()->create(['branch_id' => $branchId, 'code' => 'COCINA', 'name' => 'Cocina', 'status' => Station::ACTIVE]);
             $bar = Station::query()->create(['branch_id' => $branchId, 'code' => 'BARRA', 'name' => 'Barra', 'status' => Station::ACTIVE]);
