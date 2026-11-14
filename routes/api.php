@@ -10,6 +10,7 @@ use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\DeviceController;
 use App\Http\Controllers\FloorController;
 use App\Http\Controllers\InventoryController;
+use App\Http\Controllers\MemberController;
 use App\Http\Controllers\MobileAuthController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\PrintingController;
@@ -18,6 +19,7 @@ use App\Http\Controllers\PublicQrController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\ReservationController;
 use App\Http\Controllers\ServiceIdentityController;
+use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
 
 // Todas las rutas quedan bajo /api/v1, como indica `servers` en openapi/restia-api.yaml.
@@ -36,6 +38,10 @@ Route::controller(PublicQrController::class)->prefix('public')->middleware('qr')
     Route::get('menu', 'menu');
     Route::post('presence', 'presence');
 });
+
+// Contraseñas sin sesión (U-2): recuperación por correo y enlace de un solo uso.
+Route::post('auth/password/forgot', [UserController::class, 'forgotPassword']);
+Route::post('auth/password/reset', [UserController::class, 'resetPassword']);
 
 Route::middleware('auth.session')->group(function () {
     Route::controller(AccountController::class)->prefix('auth')->group(function () {
@@ -195,6 +201,24 @@ Route::middleware('auth.session')->group(function () {
         Route::post('{reservationId}/cancel', 'cancel')->middleware('branch:reservations.cancel');
         Route::post('{reservationId}/no-show', 'noShow')->middleware('branch:reservations.mark_no_show');
     });
+
+    // Empleados por sucursal (U-1, U-4, U-5): MANAGER solo WAITER y KITCHEN; nadie se cambia a sí mismo.
+    Route::controller(MemberController::class)->prefix('branches/{branchId}/members')->group(function () {
+        Route::get('/', 'index')->middleware('branch:members.read');
+        Route::post('/', 'create')->middleware('branch:members.manage');
+        Route::get('{userId}', 'show')->middleware('branch:members.read');
+        Route::patch('{userId}', 'update')->middleware('branch:members.manage');
+        Route::post('{userId}/revoke', 'revoke')->middleware('branch:members.manage');
+    });
+
+    // Usuario global: el actor debe ser ADMIN en todas las sucursales del usuario (A-10).
+    Route::controller(UserController::class)->prefix('users/{userId}')->group(function () {
+        Route::post('password-setup-link', 'setupLink')->middleware('anybranch:users.manage');
+        Route::post('deactivate', 'deactivate')->middleware('anybranch:users.manage');
+        Route::post('activate', 'activate')->middleware('anybranch:users.manage');
+        Route::post('sessions/revoke', 'revokeSessions')->middleware('anybranch:users.sessions.revoke');
+    });
+    Route::post('auth/password/change', [UserController::class, 'changePassword']);
 
     // Clientes (CU-1 a CU-4): cada sucursal ve solo los suyos; la búsqueda va por POST (CU-3).
     Route::controller(CustomerController::class)->prefix('branches/{branchId}/customers')->group(function () {

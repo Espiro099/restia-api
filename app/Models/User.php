@@ -16,6 +16,9 @@ class User extends Document implements AuthenticatableContract
 
     public const INACTIVE = 'INACTIVE';
 
+    /** Dado de alta sin contraseña todavía: no puede entrar hasta usar su enlace (U-2). */
+    public const INVITED = 'INVITED';
+
     protected $table = 'users';
 
     protected $hidden = ['password_hash', 'normalized_email', 'remember_token'];

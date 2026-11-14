@@ -4,6 +4,9 @@
 return [
     'auth' => [
         'access_token_seconds' => 15 * 60,
+        // Sección 30: rechazar contraseñas filtradas consultando Have I Been Pwned por k-anonimato.
+        // Se apaga en pruebas para no depender de la red.
+        'check_breached_passwords' => (bool) env('RESTIA_CHECK_BREACHED_PASSWORDS', true),
         'refresh_idle_seconds' => 7 * 24 * 3600,
         'session_max_seconds' => 30 * 24 * 3600,
         'rotation_grace_seconds' => 60,
@@ -57,6 +60,10 @@ return [
         'ticket_expiry_minutes' => 15,
         // Sin latido por este tiempo se publica print_agent.offline.
         'agent_offline_seconds' => 120,
+    ],
+    // Panel Web: los enlaces de contraseña llevan a `<url>/contrasena#<token>` (U-2).
+    'web' => [
+        'url' => env('RESTIA_WEB_URL', 'http://127.0.0.1:5173'),
     ],
     // Public QR (Decisiones_Public_QR). El QR codifica `<url>/m#<token>` (QR-5).
     'public' => [
