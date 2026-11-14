@@ -11,6 +11,7 @@ use App\Http\Controllers\DeviceController;
 use App\Http\Controllers\FiscalIssuerController;
 use App\Http\Controllers\FloorController;
 use App\Http\Controllers\InventoryController;
+use App\Http\Controllers\InvoiceController;
 use App\Http\Controllers\MemberController;
 use App\Http\Controllers\MobileAuthController;
 use App\Http\Controllers\PaymentController;
@@ -228,6 +229,20 @@ Route::middleware('auth.session')->group(function () {
         Route::get('{customerId}', 'show')->middleware('branch:customers.read');
         Route::patch('{customerId}', 'update')->middleware('branch:customers.update');
         Route::post('{customerId}/anonymize', 'anonymize')->middleware('branch:customers.anonymize');
+    });
+
+    // Facturas nominativas PUE (Decisiones_Fiscal). El timbrado es asíncrono: responde 202.
+    Route::controller(InvoiceController::class)->prefix('branches/{branchId}/invoices')->group(function () {
+        Route::get('/', 'index')->middleware('branch:invoices.read');
+        Route::post('/', 'create')->middleware('branch:invoices.create');
+        Route::get('{invoiceId}', 'show')->middleware('branch:invoices.read');
+        Route::patch('{invoiceId}', 'update')->middleware('branch:invoices.create');
+        Route::post('{invoiceId}/discard', 'discard')->middleware('branch:invoices.create');
+        Route::post('{invoiceId}/stamp', 'stamp')->middleware('branch:invoices.stamp');
+        Route::post('{invoiceId}/reconcile', 'reconcile')->middleware('branch:invoices.reconcile');
+        Route::get('{invoiceId}/events', 'events')->middleware('branch:invoices.reconcile');
+        Route::get('{invoiceId}/xml', 'xml')->middleware('branch:invoices.read');
+        Route::get('{invoiceId}/pdf', 'pdf')->middleware('branch:invoices.read');
     });
 
     // Token QR de una mesa, para imprimirlo o rotarlo (QR-4, QR-12).

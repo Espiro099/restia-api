@@ -373,7 +373,7 @@ La página del cliente solo ve el menú y avisa que hay alguien en la mesa (QR-1
 
 - **Son proyecciones (RP-3).** `restia:reports`, cada 15 s en el programador, toma de outbox los eventos de pagos, reembolsos, cuentas y sesiones, y recalcula completo cada día de negocio que tocan. Nunca acumula, así que reconstruir da lo mismo. `asOf` indica cuándo se calculó.
 - **Venta (RP-2):** por el día de negocio en que se confirmó el pago: confirmado menos reembolsado.
-  - Propinas (netas de reembolsos), cortesías y facturado van aparte. Facturado es 0 hasta que existan las facturas de Fiscal.
+  - Propinas (netas de reembolsos), cortesías y facturado van aparte. Facturado es 0: el reporte todavía no lee las facturas.
   - `checkCount` cuenta las cuentas `PAID` del día y `guestCount`, las personas de las sesiones no canceladas.
 - **Ocupación:** por cada hora local del día de negocio, cuenta:
   - Las sesiones abiertas en esa hora.
@@ -419,6 +419,41 @@ Emisores (`fiscal.manage_issuers`, solo ADMIN):
   - El PAC simulado revisa lo mismo que revisaría un PAC: que el certificado se pueda leer y esté vigente, que sea del RFC del emisor, y que la llave abra con la contraseña y corresponda al certificado.
   - Si algo falla, responde `CSD_INVALID`. Si el PAC rechaza la operación por otro motivo, responde `FISCAL_OPERATION_FAILED` con su código.
 - **Certificados de prueba:** están en `tests/Fixtures/csd`. Son autofirmados y no son CSD del SAT.
+
+**Facturas nominativas PUE**
+
+Rutas bajo `/branches/{id}/invoices`:
+
+| Operación | Ruta | Permiso |
+|---|---|---|
+| Crear un borrador | `POST` | `invoices.create` |
+| Corregir el receptor | `PATCH /{id}` | `invoices.create` |
+| Descartar | `POST /{id}/discard` | `invoices.create` |
+| Timbrar | `POST /{id}/stamp`, con `202` | `invoices.stamp` |
+| Reconciliar | `POST /{id}/reconcile` | `invoices.reconcile` |
+| Eventos | `GET /{id}/events` | `invoices.reconcile` |
+| Descargar | `GET /{id}/xml` y `GET /{id}/pdf` | `invoices.read` |
+
+- **Qué se factura:**
+  - Una cuenta `PAID` con total mayor a cero, y una sola factura activa por cuenta (F-3).
+  - Los conceptos salen de lo copiado en la cuenta al comandar. Hay uno por partida, con base e impuesto por unidad igual que la cuenta, así que el total cuadra con lo cobrado.
+  - No entran la propina ni las unidades en cortesía (F-9).
+  - La forma de pago es la del método con mayor importe.
+  - Un producto sin datos fiscales impide facturar (`INVOICE_CHECK_NOT_ELIGIBLE`).
+- **Cuenta con factura activa:** no admite cortesías ni que se muevan sus unidades (`CHECK_HAS_ACTIVE_INVOICE`).
+- **Timbrado (F-2):**
+  - `stamp` deja la factura en `PENDING_STAMP`. `php artisan restia:fiscal`, que el scheduler corre cada 5 segundos, la toma con un plazo, le asigna serie y folio y llama al PAC.
+  - El resultado es `STAMPED`, `STAMP_FAILED` (con `lastError`) o `UNKNOWN`.
+  - Si el proceso se cae a la mitad, al vencer el plazo la factura queda en `UNKNOWN`.
+- **`UNKNOWN` (F-11):** nunca se reenvía (`FISCAL_STATUS_UNKNOWN`). Un gerente pide `reconcile` y el proceso consulta al PAC por nuestra referencia:
+  - si la timbró, queda `STAMPED`;
+  - si no la tiene, queda `STAMP_FAILED` y se puede volver a timbrar.
+- **Borradores (F-10):** `DRAFT` y `STAMP_FAILED` se corrigen o se descartan; al descartar, la cuenta queda libre.
+- **Archivos (F-14):** el XML y el PDF van al disco `RESTIA_FISCAL_DISK` (por omisión `local`) y solo se descargan por la API, sin caché. El PDF del PAC simulado dice "sin validez fiscal".
+- **Probar los casos difíciles con el PAC simulado:** usa la razón social del receptor.
+  - Con "SIMULAR RECHAZO", el PAC rechaza.
+  - Con "SIMULAR SIN RESPUESTA", timbra pero no contesta.
+- **Todavía no:** cancelación y sustitución, factura global, egresos, y PPD con complementos.
 
 ## Pruebas del backend
 
