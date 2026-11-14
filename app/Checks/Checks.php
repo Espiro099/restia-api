@@ -9,6 +9,7 @@ use App\Models\Branch;
 use App\Models\Check;
 use App\Models\CheckAdjustment;
 use App\Models\CheckAllocation;
+use App\Models\Invoice;
 use App\Models\Membership;
 use App\Models\Order;
 use App\Models\OrderItemUnit;
@@ -48,8 +49,10 @@ final class Checks
     {
         $sessions = TableSession::query()->whereIn('_id', $checks->map(fn ($c) => new ObjectId((string) $c->session_id))->unique()->values()->all())->get()
             ->mapWithKeys(fn ($s) => [(string) $s->getKey() => $s->uuid]);
+        $invoices = Invoice::query()->whereIn('_id', $checks->pluck('active_invoice_id')->filter()->map(fn ($id) => new ObjectId((string) $id))->values()->all())->get()
+            ->mapWithKeys(fn ($i) => [(string) $i->getKey() => $i->uuid]);
 
-        return $checks->map(function (Check $c) use ($branch, $sessions) {
+        return $checks->map(function (Check $c) use ($branch, $sessions, $invoices) {
             $lines = Totals::lines($c);
             $orders = Order::query()->whereIn('_id', $lines->map(fn ($l) => new ObjectId((string) $l['unit']->order_id))->unique()->values()->all())->get()
                 ->mapWithKeys(fn ($o) => [(string) $o->getKey() => $o->uuid]);
@@ -88,7 +91,7 @@ final class Checks
                 'businessDate' => $c->business_date,
                 'requestedAt' => MobileAuth::time($c->requested_at),
                 'paidAt' => MobileAuth::time($c->paid_at),
-                'activeInvoiceId' => null,
+                'activeInvoiceId' => $c->active_invoice_id ? $invoices->get((string) $c->active_invoice_id) : null,
                 'createdAt' => MobileAuth::time($c->created_at),
                 'version' => (int) $c->version,
             ];
@@ -277,6 +280,7 @@ final class Checks
         $actorId = new ObjectId($actor->getKey());
         Mongo::transaction(function () use ($branchId, $actorId, $source, $version, $in) {
             $from = self::fresh($source, $version, [Check::OPEN, Check::REQUESTED, Check::REFUNDED]);
+            self::assertNoActiveInvoice($from);
             $to = Check::query()->where('branch_id', $branchId)->where('uuid', strtolower($in['targetCheckId']))->first()
                 ?? throw ValidationException::withMessages(['targetCheckId' => 'La cuenta no existe en esta sucursal.']);
             if ((string) $to->getKey() === (string) $from->getKey()) {
@@ -378,6 +382,7 @@ final class Checks
         $actorId = new ObjectId($actor->getKey());
 
         return self::change($branch, $actor, $check, $version, [Check::OPEN, Check::REQUESTED], 'check.adjustment_applied', $reason, function (Check $c) use ($branchId, $actorId, $membership, $unitUuid, $reason, $token) {
+            self::assertNoActiveInvoice($c);
             self::assertNoPayments([$c]);
             $line = Totals::lines($c)->first(fn ($l) => $l['unit']->uuid === strtolower($unitUuid));
             if (! $line) {
@@ -404,6 +409,7 @@ final class Checks
             ->where('uuid', Floor::uuid($adjustmentUuid))->first() ?? throw new NotFoundHttpException;
 
         return self::change($branch, $actor, $check, $version, [Check::OPEN, Check::REQUESTED], 'check.adjustment_reverted', $reason, function (Check $c) use ($branchId, $membership, $adjustment, $reason, $token) {
+            self::assertNoActiveInvoice($c);
             self::assertNoPayments([$c]);
             self::authorize($branchId, $membership, 'checks.adjust', 'CHECK_ADJUSTMENT', [$adjustment->uuid], $reason, $token);
             // Revertir dos veces no tiene efecto, pero la versión de la cuenta ya cambió con la primera.
@@ -523,6 +529,14 @@ final class Checks
     }
 
     /** @param list<Check> $checks */
+    /** Con factura activa no se mueven unidades ni se dan cortesías: se facturaría otra cosa (sección 5). */
+    private static function assertNoActiveInvoice(Check $check): void
+    {
+        if ($check->active_invoice_id) {
+            throw new DomainConflict('CHECK_HAS_ACTIVE_INVOICE');
+        }
+    }
+
     private static function assertNoPayments(array $checks): void
     {
         $ids = array_map(fn ($c) => new ObjectId($c->getKey()), $checks);

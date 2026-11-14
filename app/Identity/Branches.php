@@ -3,6 +3,7 @@
 namespace App\Identity;
 
 use App\Exceptions\DomainConflict;
+use App\Fiscal\Issuers;
 use App\Models\Branch;
 use App\Models\CashShift;
 use App\Models\Membership;
@@ -50,7 +51,7 @@ final class Branches
             'version' => (int) $b->version,
             'reservationHours' => array_values(array_map(fn ($h) => (array) $h, json_decode(json_encode($b->reservation_hours ?? []), true))),
             'reservationNoShowToleranceMinutes' => (int) ($b->reservation_no_show_tolerance_minutes ?? 15),
-            'fiscalIssuerId' => null,
+            'fiscalIssuerId' => Issuers::uuidOf($b),
             'reservationAiEnabled' => (bool) ($b->reservation_ai_enabled ?? false),
             'reservationAiMaxPartySize' => (int) ($b->reservation_ai_max_party_size ?? 10),
         ];

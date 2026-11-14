@@ -8,8 +8,10 @@ use App\Http\Controllers\CatalogController;
 use App\Http\Controllers\CheckController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\DeviceController;
+use App\Http\Controllers\FiscalIssuerController;
 use App\Http\Controllers\FloorController;
 use App\Http\Controllers\InventoryController;
+use App\Http\Controllers\InvoiceController;
 use App\Http\Controllers\MemberController;
 use App\Http\Controllers\MobileAuthController;
 use App\Http\Controllers\PaymentController;
@@ -229,9 +231,34 @@ Route::middleware('auth.session')->group(function () {
         Route::post('{customerId}/anonymize', 'anonymize')->middleware('branch:customers.anonymize');
     });
 
+    // Facturas nominativas PUE (Decisiones_Fiscal). El timbrado es asíncrono: responde 202.
+    Route::controller(InvoiceController::class)->prefix('branches/{branchId}/invoices')->group(function () {
+        Route::get('/', 'index')->middleware('branch:invoices.read');
+        Route::post('/', 'create')->middleware('branch:invoices.create');
+        Route::get('{invoiceId}', 'show')->middleware('branch:invoices.read');
+        Route::patch('{invoiceId}', 'update')->middleware('branch:invoices.create');
+        Route::post('{invoiceId}/discard', 'discard')->middleware('branch:invoices.create');
+        Route::post('{invoiceId}/stamp', 'stamp')->middleware('branch:invoices.stamp');
+        Route::post('{invoiceId}/reconcile', 'reconcile')->middleware('branch:invoices.reconcile');
+        Route::get('{invoiceId}/events', 'events')->middleware('branch:invoices.reconcile');
+        Route::get('{invoiceId}/xml', 'xml')->middleware('branch:invoices.read');
+        Route::get('{invoiceId}/pdf', 'pdf')->middleware('branch:invoices.read');
+    });
+
     // Token QR de una mesa, para imprimirlo o rotarlo (QR-4, QR-12).
     Route::get('branches/{branchId}/tables/{tableId}/qr', [PublicQrController::class, 'show'])->middleware('branch:tables.qr_read');
     Route::post('branches/{branchId}/tables/{tableId}/qr/rotate', [PublicQrController::class, 'rotate'])->middleware('branch:tables.qr_rotate');
+
+    // Emisores fiscales (F-12, F-13): catálogo global, solo ADMIN.
+    Route::controller(FiscalIssuerController::class)->group(function () {
+        Route::get('fiscal-issuers', 'index')->middleware('anybranch:fiscal.manage_issuers');
+        Route::post('fiscal-issuers', 'create')->middleware('anybranch:fiscal.manage_issuers');
+        Route::get('fiscal-issuers/{fiscalIssuerId}', 'show')->middleware('anybranch:fiscal.manage_issuers');
+        Route::patch('fiscal-issuers/{fiscalIssuerId}', 'update')->middleware('anybranch:fiscal.manage_issuers');
+        Route::post('fiscal-issuers/{fiscalIssuerId}/status', 'status')->middleware('anybranch:fiscal.manage_issuers');
+        Route::put('fiscal-issuers/{fiscalIssuerId}/csd', 'csd')->middleware('anybranch:fiscal.manage_issuers');
+        Route::put('branches/{branchId}/fiscal-issuer', 'assignToBranch')->middleware('branch:fiscal.manage_issuers');
+    });
 
     // Sucursales (Decisiones_Branches): no se borran, se desactivan.
     Route::controller(BranchController::class)->prefix('branches')->group(function () {
