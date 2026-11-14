@@ -61,9 +61,10 @@ return [
         // Sin latido por este tiempo se publica print_agent.offline.
         'agent_offline_seconds' => 120,
     ],
-    // Panel Web: los enlaces de contraseña llevan a `<url>/contrasena#<token>` (U-2).
+    // Panel Web: los enlaces de contraseña llevan a `<url>/contrasena#<token>` (U-2). Mientras no exista,
+    // la sirve esta misma API, así que por omisión apunta a APP_URL.
     'web' => [
-        'url' => env('RESTIA_WEB_URL', 'http://127.0.0.1:5173'),
+        'url' => env('RESTIA_WEB_URL', env('APP_URL', 'http://127.0.0.1:8000')),
     ],
     // Public QR (Decisiones_Public_QR). El QR codifica `<url>/m#<token>` (QR-5).
     'public' => [

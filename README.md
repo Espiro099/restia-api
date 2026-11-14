@@ -72,6 +72,10 @@ Empleados y contraseñas (U-1 a U-5, A-10):
   - Los enlaces son de un solo uso, se guardan como hash y llevan el token en el fragmento de la URL (`RESTIA_WEB_URL/contrasena#<token>`).
   - "Olvidé mi contraseña" siempre responde 204 y manda un enlace de 60 minutos por correo.
   - Cambiar la propia revoca las demás sesiones; definirla con un enlace las revoca todas.
+- **Página `/contrasena`:** mientras no exista el panel web, el backend sirve una página mínima para definir la contraseña con el enlace o pedir uno nuevo por correo.
+  - Lee el token del fragmento, lo quita de la barra de direcciones y solo llama a `/auth/password/reset` y `/auth/password/forgot`.
+  - Usa un CSP estricto con *nonce* por petición, sin cookies, sin caché, sin Referer y sin indexar.
+  - `RESTIA_WEB_URL` toma `APP_URL` por omisión, así los enlaces llevan a esta página. Cuando exista el panel, basta con apuntarlo ahí.
 
 Falta: login Web con cookie y CSRF y gestión de sucursales.
 
