@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AccountController;
 use App\Http\Controllers\AuditController;
+use App\Http\Controllers\BranchController;
 use App\Http\Controllers\CashController;
 use App\Http\Controllers\CatalogController;
 use App\Http\Controllers\CheckController;
@@ -207,6 +208,16 @@ Route::middleware('auth.session')->group(function () {
     // Token QR de una mesa, para imprimirlo o rotarlo (QR-4, QR-12).
     Route::get('branches/{branchId}/tables/{tableId}/qr', [PublicQrController::class, 'show'])->middleware('branch:tables.qr_read');
     Route::post('branches/{branchId}/tables/{tableId}/qr/rotate', [PublicQrController::class, 'rotate'])->middleware('branch:tables.qr_rotate');
+
+    // Sucursales (Decisiones_Branches): no se borran, se desactivan.
+    Route::controller(BranchController::class)->prefix('branches')->group(function () {
+        Route::get('/', 'index');
+        Route::post('/', 'create')->middleware('anybranch:branches.create');
+        Route::get('{branchId}', 'show')->middleware('branch');
+        Route::patch('{branchId}', 'update')->middleware('branch:branches.update');
+        Route::post('{branchId}/activate', 'activate')->middleware('branch:branches.manage_status');
+        Route::post('{branchId}/deactivate', 'deactivate')->middleware('branch:branches.manage_status');
+    });
 
     // Reportes (RP-1 a RP-3): proyecciones por día; la reconstrucción corre con restia:reports.
     Route::controller(ReportController::class)->prefix('branches/{branchId}/reports')->group(function () {

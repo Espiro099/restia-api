@@ -62,6 +62,23 @@ Cada ruta autenticada pasa por dos middleware:
 
 Los permisos por rol están en `config/permissions.php`, generado por `tools/gen_permissions.py` desde `docs/Matriz_Endpoints.md` y la tabla de permisos de `Decisiones_Orders.md`. Las duraciones y límites de D-36 están en `config/restia.php`.
 
+## Sucursales
+
+| Operación | Ruta | Permiso |
+|---|---|---|
+| Sucursales propias | `GET /branches` | Membresía activa |
+| Consulta | `GET /branches/{branchId}` | Membresía activa en la sucursal |
+| Alta | `POST /branches` | `branches.create` en alguna sucursal |
+| Cambios | `PATCH /branches/{branchId}` | `branches.update` |
+| Activar y desactivar | `POST /branches/{branchId}/activate`, `/deactivate` | `branches.manage_status` |
+
+- **Lectura:** en Android, `GET /branches` devuelve solo la sucursal del dispositivo.
+- **Alta (B-2):** quien da de alta una sucursal queda como su ADMIN. La primera se crea con `restia:install`.
+- **Lo que no cambia:** el código y la moneda.
+- **Zona horaria y corte del día:** solo cambian sin operación activa (`BRANCH_HAS_ACTIVE_OPERATIONS`), porque definen `business_date`.
+- **Reservas:** el horario (`reservationHours`) y la tolerancia de no presentado se configuran aquí.
+- **Desactivar:** no hay borrado, solo desactivación. Se rechaza si hay sesiones de mesa abiertas, turnos de caja abiertos o en cierre, pagos sin resolver o reservas futuras confirmadas.
+
 ## Servicio en piso (fase 4, primera parte)
 
 Lo que la app Android usa para atender una mesa:
