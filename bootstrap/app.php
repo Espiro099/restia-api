@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\PasswordPageController;
 use App\Http\Middleware\AssignRequestId;
 use App\Http\Middleware\AuthenticateService;
 use App\Http\Middleware\AuthenticateSession;
@@ -10,6 +11,7 @@ use App\Support\ApiErrors;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Support\Facades\Route;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -17,6 +19,10 @@ return Application::configure(basePath: dirname(__DIR__))
         apiPrefix: 'api/v1',
         commands: __DIR__.'/../routes/console.php',
         health: '/up',
+        // Página de contraseña (U-2): sin el grupo web, que agrega sesión y cookies que no necesita.
+        then: function () {
+            Route::get('contrasena', PasswordPageController::class);
+        },
     )
     ->withMiddleware(function (Middleware $middleware): void {
         // Primero que todo: cada respuesta, incluso de error, lleva X-Request-ID.

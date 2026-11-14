@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<title>Restia · Contraseña</title>
+<style nonce="{{NONCE}}">
+  :root {
+    --bg: #f7f5f2; --card: #ffffff; --text: #1f1d1a; --muted: #6b665f; --line: #ddd7cf;
+    --accent: #6a4c93; --accent-text: #ffffff; --ok: #2e7d4f; --error: #b3261e;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #161513; --card: #211f1c; --text: #f1ede7; --muted: #a8a197; --line: #3a3631; --accent: #b79be0; --accent-text: #1a1420; --ok: #7cc79b; --error: #f2a39d; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 16px;
+    background: var(--bg); color: var(--text); font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { width: 100%; max-width: 420px; background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 28px 24px; }
+  h1 { margin: 0 0 4px; font-size: 1.4rem; }
+  .brand { color: var(--accent); font-weight: 700; letter-spacing: .02em; margin-bottom: 20px; }
+  p { margin: 0 0 16px; color: var(--muted); }
+  label { display: block; font-weight: 600; margin: 16px 0 6px; }
+  input { width: 100%; padding: 12px 14px; font: inherit; color: var(--text); background: transparent;
+    border: 1px solid var(--line); border-radius: 10px; }
+  input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .hint { font-size: .875rem; color: var(--muted); margin-top: 6px; }
+  .show { display: flex; align-items: center; gap: 8px; margin-top: 12px; font-size: .9rem; color: var(--muted); }
+  .show input { width: auto; }
+  button { width: 100%; margin-top: 24px; padding: 13px; font: inherit; font-weight: 600; border: 0; border-radius: 10px;
+    background: var(--accent); color: var(--accent-text); cursor: pointer; }
+  button:disabled { opacity: .55; cursor: default; }
+  .msg { margin-top: 16px; padding: 12px 14px; border-radius: 10px; border: 1px solid; }
+  .msg.error { color: var(--error); border-color: var(--error); }
+  .msg.ok { color: var(--ok); border-color: var(--ok); }
+  .link { display: inline-block; margin-top: 18px; color: var(--accent); font-size: .95rem; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+  <div class="brand">Restia</div>
+
+  <section id="reset" hidden>
+    <h1>Define tu contraseña</h1>
+    <p>Con ella entrarás a la app de Restia junto con tu correo.</p>
+    <form id="reset-form" novalidate>
+      <label for="password">Contraseña nueva</label>
+      <input id="password" type="password" autocomplete="new-password" minlength="12" maxlength="128" required>
+      <div class="hint">Al menos 12 caracteres. Una frase de varias palabras es fácil de recordar y difícil de adivinar.</div>
+      <label for="confirm">Escríbela otra vez</label>
+      <input id="confirm" type="password" autocomplete="new-password" minlength="12" maxlength="128" required>
+      <label class="show"><input id="show" type="checkbox"> Mostrar contraseña</label>
+      <button id="reset-submit" type="submit">Guardar contraseña</button>
+    </form>
+  </section>
+
+  <section id="forgot" hidden>
+    <h1>Olvidé mi contraseña</h1>
+    <p>Escribe el correo con el que entras a Restia y te mandaremos un enlace para definir una nueva.</p>
+    <form id="forgot-form" novalidate>
+      <label for="email">Correo</label>
+      <input id="email" type="email" autocomplete="email" maxlength="254" required>
+      <button id="forgot-submit" type="submit">Mandar enlace</button>
+    </form>
+  </section>
+
+  <div id="msg" class="msg" role="status" aria-live="polite" hidden></div>
+  <a id="to-forgot" class="link" href="/contrasena" hidden>¿El enlace ya no sirve? Pide uno nuevo</a>
+</main>
+
+<script nonce="{{NONCE}}">
+(() => {
+  // El token viene en el fragmento (#), que el navegador nunca manda al servidor. Se quita de la barra de
+  // direcciones y del historial en cuanto se lee.
+  const token = decodeURIComponent(location.hash.slice(1));
+  if (location.hash) history.replaceState(null, '', location.pathname);
+  // Abrir otro enlace en la misma pestaña solo cambia el fragmento: se vuelve a cargar para leerlo.
+  addEventListener('hashchange', () => location.reload());
+
+  const $ = (id) => document.getElementById(id);
+  const msg = $('msg');
+  const show = (text, kind) => { msg.textContent = text; msg.className = 'msg ' + kind; msg.hidden = false; };
+  const clear = () => { msg.hidden = true; };
+
+  async function post(path, body) {
+    try {
+      const r = await fetch('/api/v1/' + path, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify(body),
+        credentials: 'omit',
+        referrerPolicy: 'no-referrer',
+      });
+      let data = null;
+      try { data = await r.json(); } catch (e) { /* 204 sin cuerpo */ }
+      return { status: r.status, error: data && data.error };
+    } catch (e) {
+      return { status: 0, error: null };
+    }
+  }
+
+  function fieldMessage(error) {
+    const fields = error && error.details && error.details.fields;
+    if (!fields) return null;
+    const first = Object.values(fields)[0];
+    return Array.isArray(first) ? first[0] : null;
+  }
+
+  function failure(res) {
+    if (res.status === 0) return 'Sin conexión. Revisa tu red e inténtalo de nuevo.';
+    if (res.status === 429) return 'Demasiados intentos. Espera un minuto antes de volver a intentarlo.';
+    if (res.status >= 500) return 'El servicio no está disponible. Inténtalo más tarde.';
+    return fieldMessage(res.error) || (res.error && res.error.message) || 'No se pudo completar. Inténtalo de nuevo.';
+  }
+
+  if (token.length >= 32) {
+    $('reset').hidden = false;
+    $('show').addEventListener('change', (e) => {
+      const type = e.target.checked ? 'text' : 'password';
+      $('password').type = type;
+      $('confirm').type = type;
+    });
+    $('reset-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      clear();
+      const password = $('password').value;
+      if (password.length < 12) return show('La contraseña debe tener al menos 12 caracteres.', 'error');
+      if (password !== $('confirm').value) return show('Las dos contraseñas no coinciden.', 'error');
+      $('reset-submit').disabled = true;
+      $('reset-submit').textContent = 'Guardando…';
+      const res = await post('auth/password/reset', { token, newPassword: password });
+      $('reset-submit').textContent = 'Guardar contraseña';
+      if (res.status === 204) {
+        $('reset-form').hidden = true;
+        show('Listo. Ya puedes entrar a la app de Restia con tu correo y esta contraseña.', 'ok');
+        return;
+      }
+      $('reset-submit').disabled = false;
+      if (res.error && res.error.code === 'PASSWORD_TOKEN_INVALID') {
+        $('reset-form').hidden = true;
+        $('to-forgot').hidden = false;
+        show('Este enlace ya se usó o venció. Pide uno nuevo a tu gerente, o usa "Olvidé mi contraseña".', 'error');
+        return;
+      }
+      show(failure(res), 'error');
+    });
+  } else {
+    $('forgot').hidden = false;
+    $('forgot-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      clear();
+      const email = $('email').value.trim();
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return show('Escribe un correo válido.', 'error');
+      $('forgot-submit').disabled = true;
+      $('forgot-submit').textContent = 'Enviando…';
+      const res = await post('auth/password/forgot', { email });
+      $('forgot-submit').textContent = 'Mandar enlace';
+      $('forgot-submit').disabled = false;
+      if (res.status === 204) {
+        $('forgot-form').hidden = true;
+        show('Si el correo está registrado, en unos minutos te llegará un enlace. Vence en una hora.', 'ok');
+        return;
+      }
+      show(failure(res), 'error');
+    });
+  }
+})();
+</script>
+</body>
+</html>
