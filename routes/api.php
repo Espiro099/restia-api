@@ -8,6 +8,7 @@ use App\Http\Controllers\CatalogController;
 use App\Http\Controllers\CheckController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\DeviceController;
+use App\Http\Controllers\FiscalIssuerController;
 use App\Http\Controllers\FloorController;
 use App\Http\Controllers\InventoryController;
 use App\Http\Controllers\MemberController;
@@ -232,6 +233,17 @@ Route::middleware('auth.session')->group(function () {
     // Token QR de una mesa, para imprimirlo o rotarlo (QR-4, QR-12).
     Route::get('branches/{branchId}/tables/{tableId}/qr', [PublicQrController::class, 'show'])->middleware('branch:tables.qr_read');
     Route::post('branches/{branchId}/tables/{tableId}/qr/rotate', [PublicQrController::class, 'rotate'])->middleware('branch:tables.qr_rotate');
+
+    // Emisores fiscales (F-12, F-13): catálogo global, solo ADMIN.
+    Route::controller(FiscalIssuerController::class)->group(function () {
+        Route::get('fiscal-issuers', 'index')->middleware('anybranch:fiscal.manage_issuers');
+        Route::post('fiscal-issuers', 'create')->middleware('anybranch:fiscal.manage_issuers');
+        Route::get('fiscal-issuers/{fiscalIssuerId}', 'show')->middleware('anybranch:fiscal.manage_issuers');
+        Route::patch('fiscal-issuers/{fiscalIssuerId}', 'update')->middleware('anybranch:fiscal.manage_issuers');
+        Route::post('fiscal-issuers/{fiscalIssuerId}/status', 'status')->middleware('anybranch:fiscal.manage_issuers');
+        Route::put('fiscal-issuers/{fiscalIssuerId}/csd', 'csd')->middleware('anybranch:fiscal.manage_issuers');
+        Route::put('branches/{branchId}/fiscal-issuer', 'assignToBranch')->middleware('branch:fiscal.manage_issuers');
+    });
 
     // Sucursales (Decisiones_Branches): no se borran, se desactivan.
     Route::controller(BranchController::class)->prefix('branches')->group(function () {

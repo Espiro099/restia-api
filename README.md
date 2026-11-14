@@ -373,7 +373,7 @@ La página del cliente solo ve el menú y avisa que hay alguien en la mesa (QR-1
 
 - **Son proyecciones (RP-3).** `restia:reports`, cada 15 s en el programador, toma de outbox los eventos de pagos, reembolsos, cuentas y sesiones, y recalcula completo cada día de negocio que tocan. Nunca acumula, así que reconstruir da lo mismo. `asOf` indica cuándo se calculó.
 - **Venta (RP-2):** por el día de negocio en que se confirmó el pago: confirmado menos reembolsado.
-  - Propinas (netas de reembolsos), cortesías y facturado van aparte. Facturado es 0 hasta que exista Fiscal.
+  - Propinas (netas de reembolsos), cortesías y facturado van aparte. Facturado es 0 hasta que existan las facturas de Fiscal.
   - `checkCount` cuenta las cuentas `PAID` del día y `guestCount`, las personas de las sesiones no canceladas.
 - **Ocupación:** por cada hora local del día de negocio, cuenta:
   - Las sesiones abiertas en esa hora.
@@ -395,6 +395,30 @@ La página del cliente solo ve el menú y avisa que hay alguien en la mesa (QR-1
 - `audit_log` guarda ObjectIds y la API solo expone UUID públicos. Sucursal, actor y entidad se traducen al leer; cualquier ObjectId que quede en `changes` se quita.
 - Cada entrada nueva lleva su propio `uuid`. Las anteriores reciben uno estable, derivado de su `_id`.
 - Antes, el catálogo copiaba el documento completo (con `_id`, `branch_id` y fechas en milisegundos) y el alta de dispositivo registraba `DEVICE` como actor. Ahora el catálogo guarda una copia sin ids y con fechas ISO, y el alta queda a nombre del gerente que emitió el código. La lectura corrige las entradas viejas.
+
+## Fiscal (fase 7)
+
+Todavía no hay PAC elegido. Por eso, la API habla con el PAC a través de la interfaz `App\Fiscal\Pac\Pac` (F-1), y por ahora el único conector es el **PAC simulado** (`RESTIA_PAC=simulated`, el valor por omisión). Ese conector no corre en producción. Cuando se elija proveedor, se agrega su conector y la API no cambia. Falta validar el ciclo completo en el ambiente de pruebas del PAC y con contabilidad. PPD y los complementos de pago quedan fuera de v1.
+
+**Emisores**
+
+Emisores (`fiscal.manage_issuers`, solo ADMIN):
+
+| Operación | Ruta |
+|---|---|
+| Alta, lectura y cambios | `/fiscal-issuers` |
+| Activar o desactivar | `POST /fiscal-issuers/{id}/status` |
+| Cargar el CSD | `PUT /fiscal-issuers/{id}/csd`, multipart con `certificate`, `privateKey` y `password` |
+| Asignar emisor a la sucursal | `PUT /branches/{id}/fiscal-issuer` |
+
+- **RFC:** no cambia. Un RFC distinto es otro emisor (`FISCAL_ISSUER_RFC_TAKEN`).
+- **Estado inicial:** un emisor nace inactivo. Para activarlo necesita un CSD vigente; si no lo tiene, responde `FISCAL_ISSUER_NOT_CONFIGURED`. Solo se asigna a una sucursal un emisor activo, y la asignación aplica a facturas nuevas.
+- **CSD (F-12):**
+  - El certificado, la llave y la contraseña van al PAC fuera de la transacción. Restia guarda solo la referencia, la serie y la vigencia.
+  - Nada de eso queda en la base, la auditoría ni la respuesta.
+  - El PAC simulado revisa lo mismo que revisaría un PAC: que el certificado se pueda leer y esté vigente, que sea del RFC del emisor, y que la llave abra con la contraseña y corresponda al certificado.
+  - Si algo falla, responde `CSD_INVALID`. Si el PAC rechaza la operación por otro motivo, responde `FISCAL_OPERATION_FAILED` con su código.
+- **Certificados de prueba:** están en `tests/Fixtures/csd`. Son autofirmados y no son CSD del SAT.
 
 ## Pruebas del backend
 
