@@ -80,4 +80,9 @@ return [
             'invalid_per_ip' => 20,
         ],
     ],
+
+    // Fiscal (Decisiones_Fiscal). F-1: un conector por PAC; mientras no se elige proveedor, el simulado.
+    'fiscal' => [
+        'pac' => env('RESTIA_PAC', 'simulated'),
+    ],
 ];
