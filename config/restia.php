@@ -80,4 +80,13 @@ return [
             'invalid_per_ip' => 20,
         ],
     ],
+
+    // Fiscal (Decisiones_Fiscal). F-1: un conector por PAC; mientras no se elige proveedor, el simulado.
+    'fiscal' => [
+        'pac' => env('RESTIA_PAC', 'simulated'),
+        // F-14: XML y PDF timbrados. En producción, un disco de almacenamiento de objetos.
+        'disk' => env('RESTIA_FISCAL_DISK', 'local'),
+        // Serie por tipo de comprobante; el folio es un contador por emisor y serie.
+        'series' => ['ingreso' => 'A', 'egreso' => 'NC'],
+    ],
 ];

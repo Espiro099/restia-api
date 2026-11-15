@@ -25,5 +25,8 @@ Schedule::command('restia:reservations')->everyMinute()->withoutOverlapping();
 // Caja: un turno abierto más de 24 horas genera una alerta (CA-11).
 Schedule::call(fn () => Cash::forgotten())->name('cash-forgotten-shifts')->everyFifteenMinutes()->withoutOverlapping();
 
+// Fiscal: timbrado, plazos vencidos y reconciliación (F-2, F-11). El resultado se consulta en la factura.
+Schedule::command('restia:fiscal')->everyFiveSeconds()->withoutOverlapping();
+
 // Pagos: un PENDING de más de 15 minutos pasa a UNKNOWN (P-4).
 Schedule::call(fn () => Payments::expire())->name('payments-expire-pending')->everyMinute()->withoutOverlapping();
