@@ -18,6 +18,7 @@ use App\Support\Idempotency;
 use App\Support\Mongo;
 use App\Support\Outbox;
 use Closure;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -47,8 +48,11 @@ final class Invoices
         $branches = $refs('branch_id', Branch::class);
         $issuers = $refs('issuer_id', FiscalIssuer::class);
         $checks = $refs('check_id', Check::class);
+        $related = $invoices->flatMap(fn (Invoice $i) => [$i->replaces_invoice_id, ((array) $i->cancellation)['replacement_invoice_id'] ?? null])
+            ->filter()->map(fn ($id) => new ObjectId((string) $id))->unique()->values()->all();
+        $others = $related ? Invoice::query()->whereIn('_id', $related)->get()->mapWithKeys(fn ($d) => [(string) $d->getKey() => $d->uuid]) : collect();
 
-        return $invoices->map(fn (Invoice $i) => self::shape($i, $branches, $issuers, $checks))->values()->all();
+        return $invoices->map(fn (Invoice $i) => self::shape($i, $branches, $issuers, $checks, $others))->values()->all();
     }
 
     public static function present(Invoice $invoice): array
@@ -56,9 +60,10 @@ final class Invoices
         return self::presentMany(collect([$invoice]))[0];
     }
 
-    private static function shape(Invoice $i, Collection $branches, Collection $issuers, Collection $checks): array
+    private static function shape(Invoice $i, Collection $branches, Collection $issuers, Collection $checks, Collection $others): array
     {
         $currency = $i->currency;
+        $cancellation = $i->cancellation ? (array) $i->cancellation : null;
 
         return [
             'id' => $i->uuid,
@@ -69,7 +74,7 @@ final class Invoices
             'status' => $i->status,
             'checkId' => $i->check_id ? $checks->get((string) $i->check_id) : null,
             'batchId' => null,
-            'replacesInvoiceId' => null,
+            'replacesInvoiceId' => $i->replaces_invoice_id ? $others->get((string) $i->replaces_invoice_id) : null,
             'relatedInvoiceId' => null,
             'refundId' => null,
             'receiver' => $i->receiver ? (array) $i->receiver : null,
@@ -87,7 +92,12 @@ final class Invoices
             'total' => Floor::money($i->total, $currency),
             'fiscalUuid' => $i->fiscal_uuid,
             'stampedAt' => MobileAuth::time($i->stamped_at),
-            'cancellation' => null,
+            'cancellation' => $cancellation ? [
+                'reasonCode' => $cancellation['reason_code'],
+                'replacementInvoiceId' => isset($cancellation['replacement_invoice_id']) ? $others->get((string) $cancellation['replacement_invoice_id']) : null,
+                'requestedAt' => MobileAuth::time(Carbon::instance($cancellation['requested_at']->toDateTime())),
+                'satStatus' => $cancellation['sat_status'] ?? null,
+            ] : null,
             'creditNoteRequired' => (bool) $i->credit_note_required,
             'lastError' => $i->last_error ? (array) $i->last_error : null,
             'createdAt' => MobileAuth::time($i->created_at),
@@ -122,7 +132,8 @@ final class Invoices
                 if ($check->status !== Check::PAID || bccomp((string) $check->total, '0', 2) <= 0) {
                     throw new DomainConflict('INVOICE_CHECK_NOT_ELIGIBLE', ['checkStatus' => $check->status]);
                 }
-                if ($check->active_invoice_id) {
+                $original = isset($in['replacesInvoiceId']) ? self::replaceable($check, $in['replacesInvoiceId']) : null;
+                if (! $original && $check->active_invoice_id) {
                     throw new DomainConflict('INVOICE_CHECK_ALREADY_INVOICED');
                 }
                 [$lines, $subtotal, $tax] = self::concepts($check);
@@ -138,14 +149,25 @@ final class Invoices
                     'currency' => Floor::CURRENCY, 'lines' => $lines, 'subtotal' => Floor::decimal($subtotal),
                     'tax_total' => Floor::decimal($tax), 'total' => Floor::decimal($total), 'fiscal_uuid' => null, 'stamped_at' => null,
                     'credit_note_required' => false, 'last_error' => null, 'lease_until' => null, 'created_by' => $actorId,
+                    'replaces_invoice_id' => $original ? new ObjectId($original->getKey()) : null, 'replacement_invoice_id' => null, 'cancellation' => null,
                 ]);
                 $invoiceId = new ObjectId($invoice->getKey());
-                InvoiceAllocation::query()->create([
-                    'branch_id' => $branchId, 'check_id' => new ObjectId($check->getKey()), 'invoice_id' => $invoiceId, 'active' => true, 'closed_at' => null,
-                ]);
-                Check::query()->where('_id', $check->getKey())->update(['active_invoice_id' => $invoiceId]);
+                if ($original) {
+                    // La original conserva la cuenta hasta que la sustituta quede timbrada; una sustituta a la vez.
+                    $claimed = Invoice::query()->where('_id', $original->getKey())->whereIn('status', Invoice::CANCELLABLE)
+                        ->whereNull('replacement_invoice_id')->update(['replacement_invoice_id' => $invoiceId, 'updated_at' => now()]);
+                    if ($claimed === 0) {
+                        throw new DomainConflict('INVOICE_INVALID_STATE', ['reason' => 'HAS_REPLACEMENT']);
+                    }
+                } else {
+                    InvoiceAllocation::query()->create([
+                        'branch_id' => $branchId, 'check_id' => new ObjectId($check->getKey()), 'invoice_id' => $invoiceId, 'active' => true, 'closed_at' => null,
+                    ]);
+                    Check::query()->where('_id', $check->getKey())->update(['active_invoice_id' => $invoiceId]);
+                }
                 self::event($invoiceId, null, Invoice::DRAFT, $actorId);
-                Audit::record('invoice.created', 'invoice', $invoiceId, $branchId, $actorId, changes: ['checkId' => $check->uuid, 'total' => $total]);
+                Audit::record('invoice.created', 'invoice', $invoiceId, $branchId, $actorId,
+                    changes: ['checkId' => $check->uuid, 'total' => $total] + ($original ? ['replacesInvoiceId' => $original->uuid] : []));
 
                 return [201, self::present($invoice), $invoiceId];
             });
@@ -160,6 +182,26 @@ final class Invoices
         $issuer = $branch->fiscal_issuer_id ? FiscalIssuer::query()->find((string) $branch->fiscal_issuer_id) : null;
 
         return $issuer?->canIssue() ? $issuer : throw new DomainConflict('FISCAL_ISSUER_NOT_CONFIGURED');
+    }
+
+    /**
+     * Motivo 01: la sustituta va sobre la misma cuenta que una factura vigente, la que la cuenta tiene
+     * asignada, y sin otra sustituta en curso.
+     */
+    private static function replaceable(Check $check, string $uuid): Invoice
+    {
+        $original = Invoice::query()->where('branch_id', new ObjectId((string) $check->branch_id))->where('uuid', strtolower($uuid))->first();
+        if (! $original || (string) $original->check_id !== (string) $check->getKey()) {
+            throw ValidationException::withMessages(['replacesInvoiceId' => 'La factura no existe o no es de esta cuenta.']);
+        }
+        if (! in_array($original->status, Invoice::CANCELLABLE, true) || (string) $check->active_invoice_id !== (string) $original->getKey()) {
+            throw new DomainConflict('INVOICE_INVALID_STATE', ['replacesInvoiceStatus' => $original->status]);
+        }
+        if ($original->replacement_invoice_id) {
+            throw new DomainConflict('INVOICE_INVALID_STATE', ['reason' => 'HAS_REPLACEMENT']);
+        }
+
+        return $original;
     }
 
     /**
@@ -247,6 +289,11 @@ final class Invoices
                 throw new DomainConflict('INVOICE_INVALID_STATE');
             }
             self::release($fresh);
+            if ($fresh->replaces_invoice_id) {
+                // La original queda libre para otra sustituta o para cancelarse con otro motivo.
+                Invoice::query()->where('_id', new ObjectId((string) $fresh->replaces_invoice_id))->where('replacement_invoice_id', new ObjectId($fresh->getKey()))
+                    ->update(['replacement_invoice_id' => null, 'updated_at' => now()]);
+            }
 
             return [['status' => Invoice::DISCARDED], 'invoice.discarded', null, $reason];
         });
@@ -277,6 +324,13 @@ final class Invoices
                 if (! $issuer?->canIssue()) {
                     throw new DomainConflict('FISCAL_ISSUER_NOT_CONFIGURED');
                 }
+                // La sustituta se relaciona con una factura vigente.
+                if ($fresh->replaces_invoice_id) {
+                    $original = Invoice::query()->find((string) $fresh->replaces_invoice_id);
+                    if (! in_array($original?->status, Invoice::CANCELLABLE, true)) {
+                        throw new DomainConflict('INVOICE_INVALID_STATE', ['replacesInvoiceStatus' => $original?->status]);
+                    }
+                }
                 self::transition($fresh, Invoice::PENDING_STAMP, ['last_error' => null], $actorId);
                 Outbox::publish('invoice.stamp_requested', 'invoice', $fresh->getKey(), $fresh->branch_id, ['invoiceId' => $fresh->uuid]);
 
@@ -294,6 +348,70 @@ final class Invoices
         Audit::record('invoice.reconcile_requested', 'invoice', $invoice->getKey(), $invoice->branch_id, new ObjectId($actor->getKey()));
 
         return $invoice->refresh();
+    }
+
+    // ---------------------------------------------------------------- Cancelación
+
+    /**
+     * Deja la solicitud en CANCELLATION_REQUESTED y responde 202; el proceso interno (Cancelling) habla
+     * con el PAC. Con motivo 01 la sustituta ya debe estar timbrada; con otro motivo no puede haber una
+     * sustituta en curso. Cancelar no reembolsa ni reabre la cuenta.
+     *
+     * @param  array{reasonCode: string, reason: string, replacementInvoiceId?: string}  $in
+     * @return array{0: int, 1: array<string, mixed>}
+     */
+    public static function requestCancel(Branch $branch, User $actor, Invoice $invoice, int $version, string $key, array $in): array
+    {
+        $branchId = new ObjectId($branch->getKey());
+        $actorId = new ObjectId($actor->getKey());
+
+        return Idempotency::run($branchId, $key, $actorId, 'cancelInvoice', Idempotency::hash('cancelInvoice', ['invoiceId' => $invoice->uuid, 'version' => $version] + $in),
+            function () use ($branchId, $actorId, $invoice, $version, $in) {
+                $fresh = self::fresh($invoice, $version);
+                if (! in_array($fresh->status, Invoice::CANCELLABLE, true)) {
+                    throw new DomainConflict('INVOICE_INVALID_STATE');
+                }
+                $replacement = null;
+                if ($in['reasonCode'] === '01') {
+                    $replacement = isset($in['replacementInvoiceId'])
+                        ? Invoice::query()->where('branch_id', $branchId)->where('uuid', strtolower($in['replacementInvoiceId']))->first() : null;
+                    if (! $replacement || (string) $replacement->replaces_invoice_id !== (string) $fresh->getKey() || $replacement->status !== Invoice::STAMPED) {
+                        throw new DomainConflict('INVOICE_REPLACEMENT_REQUIRED');
+                    }
+                } elseif ($fresh->replacement_invoice_id) {
+                    throw new DomainConflict('INVOICE_INVALID_STATE', ['reason' => 'HAS_REPLACEMENT']);
+                }
+                self::transition($fresh, Invoice::CANCELLATION_REQUESTED, [
+                    'cancellation' => [
+                        'reason_code' => $in['reasonCode'], 'reason' => $in['reason'],
+                        'replacement_invoice_id' => $replacement ? new ObjectId($replacement->getKey()) : null,
+                        'requested_at' => new UTCDateTime(now()), 'sat_status' => null,
+                    ],
+                    'cancel_next_at' => new UTCDateTime(now()), 'last_error' => null,
+                ], $actorId, details: ['reasonCode' => $in['reasonCode']]);
+                Audit::record('invoice.cancellation_requested', 'invoice', $fresh->getKey(), $branchId, $actorId, reason: $in['reason'],
+                    changes: ['reasonCode' => $in['reasonCode'], 'replacementInvoiceId' => $replacement?->uuid]);
+                Outbox::publish('invoice.cancellation_requested', 'invoice', $fresh->getKey(), $branchId,
+                    ['invoiceId' => $fresh->uuid, 'reasonCode' => $in['reasonCode']]);
+
+                return [202, self::present($fresh->refresh()), new ObjectId($fresh->getKey())];
+            });
+    }
+
+    /**
+     * La sustituta recién timbrada toma la cuenta de la original (Decisiones_Fiscal, sustitución). Corre
+     * en la transacción que la deja STAMPED.
+     */
+    public static function takeOver(Invoice $replacement): void
+    {
+        $originalId = new ObjectId((string) $replacement->replaces_invoice_id);
+        $replacementId = new ObjectId($replacement->getKey());
+        $checkId = new ObjectId((string) $replacement->check_id);
+        InvoiceAllocation::query()->where('invoice_id', $originalId)->where('active', true)->update(['active' => false, 'closed_at' => now()]);
+        InvoiceAllocation::query()->create([
+            'branch_id' => $replacement->branch_id, 'check_id' => $checkId, 'invoice_id' => $replacementId, 'active' => true, 'closed_at' => null,
+        ]);
+        Check::query()->where('_id', $checkId)->update(['active_invoice_id' => $replacementId]);
     }
 
     // ---------------------------------------------------------------- Ayudas

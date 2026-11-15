@@ -8,7 +8,6 @@ use App\Models\Invoice;
 use App\Models\InvoiceAllocation;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Testing\TestResponse;
 use MongoDB\BSON\ObjectId;
 use Tests\Feature\Floor\FloorTestCase;
 
@@ -16,39 +15,13 @@ use Tests\Feature\Floor\FloorTestCase;
 class InvoicesTest extends FloorTestCase
 {
     use ConfiguresIssuer;
-
-    private array $receiver = ['rfc' => 'XIA190128J61', 'legalName' => 'XENON INDUSTRIAL ARTICLES', 'taxRegime' => '601', 'postalCode' => '76343', 'cfdiUse' => 'G03'];
+    use MakesInvoices;
 
     protected function setUp(): void
     {
         parent::setUp();
         Storage::fake('local');
         $this->staff['admin'] = $this->staffMember('admin@ejemplo.mx', $this->branch, 'ADMIN');
-    }
-
-    /** Cuenta de una ronda de 207.00, cobrada en efectivo. */
-    private function paidCheck(int $table = 1): array
-    {
-        $session = $this->openSession($table);
-        $this->as('mesero', 'POST', 'orders', $this->round($session), $this->key())->assertCreated();
-        $this->payAll($session);
-
-        return $this->as('mesero', 'GET', "checks?sessionId=$session")->json('data.0');
-    }
-
-    private function create(string $check, array $receiver = [], array $headers = []): TestResponse
-    {
-        return $this->as('mesero', 'POST', 'invoices', ['checkId' => $check, 'receiver' => $receiver + $this->receiver], ($headers ?: $this->key()));
-    }
-
-    private function v(array $invoice): array
-    {
-        return ['If-Match' => '"'.$invoice['version'].'"'];
-    }
-
-    private function invoice(string $id): array
-    {
-        return $this->as('mesero', 'GET', "invoices/$id")->assertOk()->json('data');
     }
 
     public function test_borrador_desde_una_cuenta_pagada(): void

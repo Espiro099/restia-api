@@ -34,7 +34,12 @@ class Invoice extends Document
     /** Se pueden corregir, descartar y mandar a timbrar: nunca existieron ante el SAT. */
     public const EDITABLE = [self::DRAFT, self::STAMP_FAILED];
 
+    /** Vigentes ante el SAT y sin cancelación en curso: se pueden sustituir o cancelar. */
+    public const CANCELLABLE = [self::STAMPED, self::CANCELLATION_REJECTED];
+
     protected $table = 'invoices';
 
-    protected $casts = ['stamped_at' => 'datetime', 'lease_until' => 'datetime', 'reconcile_requested_at' => 'datetime'];
+    protected $casts = [
+        'stamped_at' => 'datetime', 'lease_until' => 'datetime', 'reconcile_requested_at' => 'datetime', 'cancel_next_at' => 'datetime',
+    ];
 }

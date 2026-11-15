@@ -430,6 +430,7 @@ Rutas bajo `/branches/{id}/invoices`:
 | Corregir el receptor | `PATCH /{id}` | `invoices.create` |
 | Descartar | `POST /{id}/discard` | `invoices.create` |
 | Timbrar | `POST /{id}/stamp`, con `202` | `invoices.stamp` |
+| Cancelar | `POST /{id}/cancel`, con `202` | `invoices.cancel` |
 | Reconciliar | `POST /{id}/reconcile` | `invoices.reconcile` |
 | Eventos | `GET /{id}/events` | `invoices.reconcile` |
 | Descargar | `GET /{id}/xml` y `GET /{id}/pdf` | `invoices.read` |
@@ -450,10 +451,23 @@ Rutas bajo `/branches/{id}/invoices`:
   - si no la tiene, queda `STAMP_FAILED` y se puede volver a timbrar.
 - **Borradores (F-10):** `DRAFT` y `STAMP_FAILED` se corrigen o se descartan; al descartar, la cuenta queda libre.
 - **Archivos (F-14):** el XML y el PDF van al disco `RESTIA_FISCAL_DISK` (por omisión `local`) y solo se descargan por la API, sin caché. El PDF del PAC simulado dice "sin validez fiscal".
+- **Cancelación:**
+  - Se pide sobre una factura `STAMPED` o `CANCELLATION_REJECTED`, con `If-Match`, `Idempotency-Key`, motivo del SAT (`reasonCode`) y `reason`. Queda en `CANCELLATION_REQUESTED`.
+  - `restia:fiscal` envía la solicitud. Sin aceptación del receptor, queda `CANCELLED`. Si el receptor debe aceptar, queda `CANCELLATION_IN_PROGRESS` y se consulta cada `RESTIA_FISCAL_CANCELLATION_POLL` segundos (900 por omisión) hasta `CANCELLED` o `CANCELLATION_REJECTED`.
+  - Si el SAT no admite la solicitud, queda `CANCELLATION_REJECTED` con `lastError`. Si el PAC no contesta, se vuelve a pedir en un minuto: cancelar dos veces el mismo folio fiscal no duplica nada.
+  - Al quedar `CANCELLED`, la cuenta se libera y se puede volver a facturar. El lado comercial no cambia: cancelar no reembolsa ni reabre la cuenta.
+  - El motivo 04 es solo para la factura global, que todavía no existe.
+- **Sustitución (motivo 01):**
+  1. Se crea la sustituta con `replacesInvoiceId`, sobre la misma cuenta. Hay una sola sustituta en curso por factura; descartarla permite crear otra.
+  2. Al timbrarla, se relaciona con la original (`TipoRelacion` 04) y toma la cuenta.
+  3. Luego se cancela la original con motivo 01 y `replacementInvoiceId`. Sin la sustituta timbrada responde `INVOICE_REPLACEMENT_REQUIRED`.
+  - Mientras haya una sustituta en curso, la original no se cancela con otro motivo.
 - **Probar los casos difíciles con el PAC simulado:** usa la razón social del receptor.
-  - Con "SIMULAR RECHAZO", el PAC rechaza.
+  - Con "SIMULAR RECHAZO", el PAC rechaza el timbrado.
   - Con "SIMULAR SIN RESPUESTA", timbra pero no contesta.
-- **Todavía no:** cancelación y sustitución, factura global, egresos, y PPD con complementos.
+  - Con "SIMULAR RECEPTOR ACEPTA" o "SIMULAR RECEPTOR RECHAZA", la cancelación espera al receptor y la siguiente consulta da su respuesta.
+  - Con "SIMULAR NO CANCELABLE", el SAT no admite la cancelación.
+- **Todavía no:** factura global, egresos, y PPD con complementos.
 
 ## Pruebas del backend
 

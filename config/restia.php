@@ -88,5 +88,7 @@ return [
         'disk' => env('RESTIA_FISCAL_DISK', 'local'),
         // Serie por tipo de comprobante; el folio es un contador por emisor y serie.
         'series' => ['ingreso' => 'A', 'egreso' => 'NC'],
+        // Cada cuánto se consulta una cancelación que espera la respuesta del receptor.
+        'cancellation_poll_seconds' => (int) env('RESTIA_FISCAL_CANCELLATION_POLL', 900),
     ],
 ];

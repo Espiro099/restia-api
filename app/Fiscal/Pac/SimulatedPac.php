@@ -87,6 +87,60 @@ final class SimulatedPac implements Pac
         return new StampResult($doc['fiscal_uuid'], CarbonImmutable::instance($doc['stamped_at']->toDateTime()), $doc['xml']);
     }
 
+    /**
+     * Sin aceptación del receptor se cancela en el acto. Con "SIMULAR RECEPTOR ACEPTA" o "SIMULAR
+     * RECEPTOR RECHAZA" en la razón social del receptor queda en proceso y la consulta da la respuesta;
+     * con "SIMULAR NO CANCELABLE" el SAT no admite la solicitud.
+     */
+    public function cancel(CancelRequest $request): CancelResult
+    {
+        $doc = $this->document($request->fiscalUuid) ?? throw new PacFailure('CANC205', 'El folio fiscal no existe.');
+        if (($doc['cancel_status'] ?? null) === CancelResult::CANCELLED) {
+            return new CancelResult(CancelResult::CANCELLED, $doc['sat_status']);
+        }
+        if ($request->reasonCode === '01' && ! $this->document((string) $request->replacementFiscalUuid)) {
+            throw new PacFailure('CANC301', 'El folio fiscal de la sustituta no existe.');
+        }
+        $name = (string) ($doc['receiver_name'] ?? '');
+        if (str_contains($name, 'SIMULAR NO CANCELABLE')) {
+            throw new PacFailure('CANC_NO_CANCELABLE', 'El comprobante no es cancelable.');
+        }
+        $result = str_contains($name, 'SIMULAR RECEPTOR')
+            ? new CancelResult(CancelResult::IN_PROGRESS, 'En proceso')
+            : new CancelResult(CancelResult::CANCELLED, 'Cancelado sin aceptación');
+        $this->saveCancellation($request->fiscalUuid, $result);
+
+        return $result;
+    }
+
+    public function cancellationStatus(CancelRequest $request): CancelResult
+    {
+        $doc = $this->document($request->fiscalUuid) ?? throw new PacFailure('CANC205', 'El folio fiscal no existe.');
+        if (($doc['cancel_status'] ?? null) !== CancelResult::IN_PROGRESS) {
+            return new CancelResult($doc['cancel_status'] ?? CancelResult::REJECTED, $doc['sat_status'] ?? null);
+        }
+        $result = str_contains((string) ($doc['receiver_name'] ?? ''), 'SIMULAR RECEPTOR RECHAZA')
+            ? new CancelResult(CancelResult::REJECTED, 'Solicitud rechazada')
+            : new CancelResult(CancelResult::CANCELLED, 'Cancelado con aceptación');
+        $this->saveCancellation($request->fiscalUuid, $result);
+
+        return $result;
+    }
+
+    /** @return array<string, mixed>|null */
+    private function document(string $fiscalUuid): ?array
+    {
+        $doc = DB::connection('mongodb')->table('simulated_pac_documents')->where('fiscal_uuid', $fiscalUuid)->first();
+
+        return $doc ? (array) $doc : null;
+    }
+
+    private function saveCancellation(string $fiscalUuid, CancelResult $result): void
+    {
+        DB::connection('mongodb')->table('simulated_pac_documents')->where('fiscal_uuid', $fiscalUuid)
+            ->update(['cancel_status' => $result->status, 'sat_status' => $result->satStatus]);
+    }
+
     private function save(StampRequest $request): StampResult
     {
         $uuid = strtoupper((string) Str::uuid());
@@ -94,6 +148,7 @@ final class SimulatedPac implements Pac
         $result = new StampResult($uuid, $stampedAt, self::xml($request, $uuid, $stampedAt));
         DB::connection('mongodb')->table('simulated_pac_documents')->insert([
             'reference' => $request->reference, 'fiscal_uuid' => $uuid, 'xml' => $result->xml, 'stamped_at' => new UTCDateTime($stampedAt),
+            'receiver_name' => $request->receiver['legalName'] ?? null,
         ]);
 
         return $result;
@@ -123,6 +178,9 @@ final class SimulatedPac implements Pac
             'Exportacion' => '01', 'MetodoPago' => $r->paymentMethod, 'LugarExpedicion' => $r->issuer['postalCode'],
         ]);
         $root->setAttributeNS('http://www.w3.org/2000/xmlns/', 'xmlns:tfd', self::TFD);
+        if ($r->replaces) {
+            $el($el($root, 'cfdi:CfdiRelacionados', ['TipoRelacion' => '04']), 'cfdi:CfdiRelacionado', ['UUID' => $r->replaces]);
+        }
         $el($root, 'cfdi:Emisor', ['Rfc' => $r->issuer['rfc'], 'Nombre' => $r->issuer['legalName'], 'RegimenFiscal' => $r->issuer['taxRegime']]);
         $receiver = $r->receiver ?? ['rfc' => 'XAXX010101000', 'legalName' => 'PUBLICO EN GENERAL', 'postalCode' => $r->issuer['postalCode'], 'taxRegime' => '616', 'cfdiUse' => 'S01'];
         $el($root, 'cfdi:Receptor', ['Rfc' => $receiver['rfc'], 'Nombre' => $receiver['legalName'], 'DomicilioFiscalReceptor' => $receiver['postalCode'],

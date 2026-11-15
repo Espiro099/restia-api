@@ -29,5 +29,7 @@ final readonly class StampRequest
         public string $taxTotal,
         public string $total,
         public CarbonImmutable $issuedAt,
+        /** Folio fiscal que sustituye (relación 04), o null. */
+        public ?string $replaces = null,
     ) {}
 }

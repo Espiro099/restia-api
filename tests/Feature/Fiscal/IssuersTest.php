@@ -2,6 +2,8 @@
 
 namespace Tests\Feature\Fiscal;
 
+use App\Fiscal\Pac\CancelRequest;
+use App\Fiscal\Pac\CancelResult;
 use App\Fiscal\Pac\CsdInfo;
 use App\Fiscal\Pac\Pac;
 use App\Fiscal\Pac\PacFailure;
@@ -111,6 +113,16 @@ class IssuersTest extends FloorTestCase
             public function find(string $reference): ?StampResult
             {
                 return null;
+            }
+
+            public function cancel(CancelRequest $request): CancelResult
+            {
+                throw new PacFailure('301');
+            }
+
+            public function cancellationStatus(CancelRequest $request): CancelResult
+            {
+                throw new PacFailure('301');
             }
         });
         $this->uploadCsd($id, '"1"')->assertStatus(409)->assertJsonPath('error.code', 'FISCAL_OPERATION_FAILED')->assertJsonPath('error.details.providerCode', '301');
