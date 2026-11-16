@@ -32,4 +32,19 @@ interface Pac
      * @throws PacUnreachable si el PAC tampoco lo sabe ahora
      */
     public function find(string $reference): ?StampResult;
+
+    /**
+     * Solicita la cancelación. Repetirla con el mismo folio fiscal es seguro: el SAT no la duplica.
+     *
+     * @throws PacFailure si el PAC o el SAT no admiten la solicitud: el CFDI sigue vigente
+     * @throws PacUnreachable si no hubo respuesta: se vuelve a solicitar más tarde
+     */
+    public function cancel(CancelRequest $request): CancelResult;
+
+    /**
+     * Consulta el estatus de una cancelación en proceso.
+     *
+     * @throws PacUnreachable si no hubo respuesta
+     */
+    public function cancellationStatus(CancelRequest $request): CancelResult;
 }

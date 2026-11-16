@@ -42,8 +42,10 @@ Se conserva lo definido en D-15 y la sección 13 del documento maestro: ciclo co
 | Respuesta del PAC | `STAMPING` | Proceso interno | Factura, archivos, eventos, outbox | `STAMPED`, `STAMP_FAILED` o `UNKNOWN` | No aplica |
 | Reconciliar | `UNKNOWN` | Consulta al PAC por nuestra referencia | Factura, eventos, auditoría | `STAMPED`, `STAMP_FAILED`, `CANCELLED` o `UNKNOWN` | `FISCAL_STATUS_UNKNOWN`, `INVOICE_INVALID_STATE` |
 | Solicitar cancelación | `STAMPED`, `CANCELLATION_REJECTED` | `If-Match`; motivo SAT; sustituta timbrada si el motivo es 01 | Factura, eventos, auditoría, outbox | `CANCELLATION_REQUESTED` | `VERSION_CONFLICT`, `INVOICE_INVALID_STATE`, `INVOICE_REPLACEMENT_REQUIRED` |
-| El PAC acepta la solicitud | `CANCELLATION_REQUESTED` | Proceso interno | Factura, eventos | `CANCELLATION_IN_PROGRESS` o `UNKNOWN` | No aplica |
+| El PAC acepta la solicitud | `CANCELLATION_REQUESTED` | Proceso interno | Factura, eventos | `CANCELLATION_IN_PROGRESS`, `CANCELLED` o `CANCELLATION_REJECTED`; sin respuesta sigue en `CANCELLATION_REQUESTED` y se repite (ver nota) | No aplica |
 | Resultado del SAT | `CANCELLATION_IN_PROGRESS` | Proceso interno | Factura, asignaciones si se canceló, eventos, outbox | `CANCELLED` o `CANCELLATION_REJECTED` | No aplica |
+
+**Nota de implementación (cancelación sin respuesta):** a diferencia del timbrado, repetir la solicitud de cancelación del mismo folio fiscal no duplica nada en el SAT. Por eso, si el PAC no contesta o el proceso se cae, la factura sigue en `CANCELLATION_REQUESTED` y la solicitud se repite más tarde, en lugar de pasar a `UNKNOWN`. Si el SAT la cancela sin aceptación, la factura pasa directo a `CANCELLED`.
 
 ### Complemento de pago
 

@@ -239,6 +239,7 @@ Route::middleware('auth.session')->group(function () {
         Route::patch('{invoiceId}', 'update')->middleware('branch:invoices.create');
         Route::post('{invoiceId}/discard', 'discard')->middleware('branch:invoices.create');
         Route::post('{invoiceId}/stamp', 'stamp')->middleware('branch:invoices.stamp');
+        Route::post('{invoiceId}/cancel', 'cancel')->middleware('branch:invoices.cancel');
         Route::post('{invoiceId}/reconcile', 'reconcile')->middleware('branch:invoices.reconcile');
         Route::get('{invoiceId}/events', 'events')->middleware('branch:invoices.reconcile');
         Route::get('{invoiceId}/xml', 'xml')->middleware('branch:invoices.read');

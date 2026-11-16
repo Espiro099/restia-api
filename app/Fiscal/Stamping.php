@@ -175,6 +175,7 @@ final class Stamping
             taxTotal: bcadd((string) $invoice->tax_total, '0', 2),
             total: bcadd((string) $invoice->total, '0', 2),
             issuedAt: CarbonImmutable::now(),
+            replaces: $invoice->replaces_invoice_id ? Invoice::query()->find((string) $invoice->replaces_invoice_id)?->fiscal_uuid : null,
         );
     }
 
@@ -189,6 +190,9 @@ final class Stamping
                 return false;
             }
             Invoices::transition($fresh, $to, $changes + ['lease_until' => null], null, $providerCode);
+            if ($to === Invoice::STAMPED && $fresh->replaces_invoice_id) {
+                Invoices::takeOver($fresh);
+            }
             if ($to === Invoice::STAMP_FAILED || $to === Invoice::UNKNOWN) {
                 Audit::record($event, 'invoice', $fresh->getKey(), $fresh->branch_id, null, changes: ['providerCode' => $providerCode]);
             }

@@ -79,12 +79,9 @@ class InvoiceController extends Controller
         $key = Idempotency::key($request);
         $in = Api::body($request, ['checkId' => ['required', 'string', 'uuid'], 'satPaymentMethod' => ['sometimes', 'string', Rule::in(['PUE', 'PPD'])],
             'replacesInvoiceId' => ['sometimes', 'string', 'uuid']] + self::receiverRules());
-        // PPD y complementos quedan fuera de v1; la sustitución (motivo 01) llega con la cancelación.
+        // PPD y complementos quedan fuera de v1.
         if (($in['satPaymentMethod'] ?? 'PUE') === 'PPD') {
             throw ValidationException::withMessages(['satPaymentMethod' => 'Por ahora solo se factura PUE: la cuenta ya pagada.']);
-        }
-        if (isset($in['replacesInvoiceId'])) {
-            throw ValidationException::withMessages(['replacesInvoiceId' => 'La factura sustituta todavía no está disponible.']);
         }
         unset($in['satPaymentMethod']);
         [$status, $data] = Invoices::create(AuthorizeBranch::branch($request), $request->user(), $key, $in);
@@ -119,6 +116,28 @@ class InvoiceController extends Controller
         $key = Idempotency::key($request);
         Api::body($request, []);
         [$status, $data] = Invoices::requestStamp(AuthorizeBranch::branch($request), $request->user(), $this->find($request, $invoiceId), $version, $key);
+
+        return $this->versioned(Api::data($data, $status), $data);
+    }
+
+    public function cancel(Request $request, string $branchId, string $invoiceId): JsonResponse
+    {
+        $version = Floor::ifMatch($request);
+        $key = Idempotency::key($request);
+        $in = Api::body($request, [
+            'reasonCode' => ['required', 'string', Rule::in(['01', '02', '03', '04'])],
+            'reason' => ['required', 'string', 'min:3', 'max:500'],
+            'replacementInvoiceId' => ['sometimes', 'string', 'uuid'],
+        ]);
+        $invoice = $this->find($request, $invoiceId);
+        // El motivo 04 es para una operación nominativa incluida en una factura global.
+        if ($in['reasonCode'] === '04' && $invoice->scope !== 'GLOBAL') {
+            throw ValidationException::withMessages(['reasonCode' => 'El motivo 04 solo aplica a una factura global.']);
+        }
+        if ($in['reasonCode'] !== '01' && isset($in['replacementInvoiceId'])) {
+            throw ValidationException::withMessages(['replacementInvoiceId' => 'Solo el motivo 01 lleva factura sustituta.']);
+        }
+        [$status, $data] = Invoices::requestCancel(AuthorizeBranch::branch($request), $request->user(), $invoice, $version, $key, $in);
 
         return $this->versioned(Api::data($data, $status), $data);
     }
