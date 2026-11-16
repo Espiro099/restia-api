@@ -176,6 +176,7 @@ final class Stamping
             total: bcadd((string) $invoice->total, '0', 2),
             issuedAt: CarbonImmutable::now(),
             replaces: $invoice->replaces_invoice_id ? Invoice::query()->find((string) $invoice->replaces_invoice_id)?->fiscal_uuid : null,
+            global: $invoice->global_info ? (array) $invoice->global_info : null,
         );
     }
 

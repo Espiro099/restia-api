@@ -11,6 +11,7 @@ use App\Http\Controllers\DeviceController;
 use App\Http\Controllers\FiscalIssuerController;
 use App\Http\Controllers\FloorController;
 use App\Http\Controllers\InventoryController;
+use App\Http\Controllers\InvoiceBatchController;
 use App\Http\Controllers\InvoiceController;
 use App\Http\Controllers\MemberController;
 use App\Http\Controllers\MobileAuthController;
@@ -244,6 +245,14 @@ Route::middleware('auth.session')->group(function () {
         Route::get('{invoiceId}/events', 'events')->middleware('branch:invoices.reconcile');
         Route::get('{invoiceId}/xml', 'xml')->middleware('branch:invoices.read');
         Route::get('{invoiceId}/pdf', 'pdf')->middleware('branch:invoices.read');
+    });
+
+    // Factura global (F-6, F-7): lotes por periodo; su factura se timbra con la operación stamp.
+    Route::controller(InvoiceBatchController::class)->prefix('branches/{branchId}/invoice-batches')->group(function () {
+        Route::get('/', 'index')->middleware('branch:invoices.global');
+        Route::post('/', 'create')->middleware('branch:invoices.global');
+        Route::get('{batchId}', 'show')->middleware('branch:invoices.global');
+        Route::post('{batchId}/exclude-checks', 'exclude')->middleware('branch:invoices.global');
     });
 
     // Token QR de una mesa, para imprimirlo o rotarlo (QR-4, QR-12).
