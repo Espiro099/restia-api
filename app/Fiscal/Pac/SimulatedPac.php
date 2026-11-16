@@ -178,6 +178,9 @@ final class SimulatedPac implements Pac
             'Exportacion' => '01', 'MetodoPago' => $r->paymentMethod, 'LugarExpedicion' => $r->issuer['postalCode'],
         ]);
         $root->setAttributeNS('http://www.w3.org/2000/xmlns/', 'xmlns:tfd', self::TFD);
+        if ($r->global) {
+            $el($root, 'cfdi:InformacionGlobal', ['Periodicidad' => $r->global['periodicity'], 'Meses' => $r->global['months'], 'Año' => $r->global['year']]);
+        }
         if ($r->replaces) {
             $el($el($root, 'cfdi:CfdiRelacionados', ['TipoRelacion' => '04']), 'cfdi:CfdiRelacionado', ['UUID' => $r->replaces]);
         }
@@ -188,7 +191,8 @@ final class SimulatedPac implements Pac
         $concepts = $el($root, 'cfdi:Conceptos', []);
         $byRate = [];
         foreach ($r->lines as $line) {
-            $c = $el($concepts, 'cfdi:Concepto', ['ClaveProdServ' => $line['satProductCode'], 'Cantidad' => $line['quantity'], 'ClaveUnidad' => $line['satUnitCode'],
+            $c = $el($concepts, 'cfdi:Concepto', ['ClaveProdServ' => $line['satProductCode'], 'NoIdentificacion' => $line['identification'] ?? null,
+                'Cantidad' => $line['quantity'], 'ClaveUnidad' => $line['satUnitCode'],
                 'Descripcion' => $line['description'], 'ValorUnitario' => $line['unitValue'], 'Importe' => $line['amount'], 'ObjetoImp' => $line['taxObject']]);
             if ($line['taxObject'] !== '02') {
                 continue;

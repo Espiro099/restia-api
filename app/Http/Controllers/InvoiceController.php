@@ -24,7 +24,7 @@ use MongoDB\BSON\ObjectId;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
-/** Facturas nominativas PUE (Decisiones_Fiscal). */
+/** Facturas PUE, nominativas y globales (Decisiones_Fiscal). Los lotes de la global están en InvoiceBatchController. */
 class InvoiceController extends Controller
 {
     /** @return array<string, list<mixed>> */
@@ -98,8 +98,12 @@ class InvoiceController extends Controller
     {
         $version = Floor::ifMatch($request);
         $in = Api::body($request, self::receiverRules());
+        $invoice = $this->find($request, $invoiceId);
+        if ($invoice->scope === 'GLOBAL') {
+            throw ValidationException::withMessages(['receiver' => 'La factura global va al público en general y no lleva receptor.']);
+        }
 
-        return $this->etagged(Invoices::update($request->user(), $this->find($request, $invoiceId), $version, $in['receiver']));
+        return $this->etagged(Invoices::update($request->user(), $invoice, $version, $in['receiver']));
     }
 
     public function discard(Request $request, string $branchId, string $invoiceId): JsonResponse
@@ -107,7 +111,7 @@ class InvoiceController extends Controller
         $version = Floor::ifMatch($request);
         $in = Api::body($request, ['reason' => ['required', 'string', 'min:3', 'max:500']]);
 
-        return $this->etagged(Invoices::discard($request->user(), $this->find($request, $invoiceId), $version, $in['reason']));
+        return $this->etagged(Invoices::discard($request->user(), $this->global($request, $this->find($request, $invoiceId)), $version, $in['reason']));
     }
 
     public function stamp(Request $request, string $branchId, string $invoiceId): JsonResponse
@@ -115,7 +119,8 @@ class InvoiceController extends Controller
         $version = Floor::ifMatch($request);
         $key = Idempotency::key($request);
         Api::body($request, []);
-        [$status, $data] = Invoices::requestStamp(AuthorizeBranch::branch($request), $request->user(), $this->find($request, $invoiceId), $version, $key);
+        $invoice = $this->global($request, $this->find($request, $invoiceId));
+        [$status, $data] = Invoices::requestStamp(AuthorizeBranch::branch($request), $request->user(), $invoice, $version, $key);
 
         return $this->versioned(Api::data($data, $status), $data);
     }
@@ -191,6 +196,16 @@ class InvoiceController extends Controller
         return response($content, 200, [
             'Content-Type' => $type, 'Content-Disposition' => "attachment; filename=\"factura-$name.$kind\"", 'Cache-Control' => 'no-store',
         ]);
+    }
+
+    /** La global la manejan quienes tienen invoices.global, aunque la operación pida un permiso que el mesero tiene. */
+    private function global(Request $request, Invoice $invoice): Invoice
+    {
+        if ($invoice->scope === 'GLOBAL' && ! AuthorizeBranch::membership($request)->can('invoices.global')) {
+            throw new DomainConflict('FORBIDDEN');
+        }
+
+        return $invoice;
     }
 
     private function find(Request $request, string $id): Invoice

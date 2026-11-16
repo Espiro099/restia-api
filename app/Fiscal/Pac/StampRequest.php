@@ -10,7 +10,8 @@ use Carbon\CarbonImmutable;
  *
  * @param  array{rfc: string, legalName: string, taxRegime: string, postalCode: string, csdRef: string}  $issuer
  * @param  array{rfc: string, legalName: string, taxRegime: string, postalCode: string, cfdiUse: string}|null  $receiver
- * @param  list<array{description: string, satProductCode: string, satUnitCode: string, quantity: string, unitValue: string, amount: string, taxObject: string, taxRate: string, taxAmount: string}>  $lines
+ * @param  array{periodicity: string, months: string, year: string}|null  $global
+ * @param  list<array{description: string, identification?: string, satProductCode: string, satUnitCode: string, quantity: string, unitValue: string, amount: string, taxObject: string, taxRate: string, taxAmount: string}>  $lines
  */
 final readonly class StampRequest
 {
@@ -31,5 +32,7 @@ final readonly class StampRequest
         public CarbonImmutable $issuedAt,
         /** Folio fiscal que sustituye (relación 04), o null. */
         public ?string $replaces = null,
+        /** Factura global: c_Periodicidad, c_Meses y año (InformacionGlobal), o null si es nominativa. */
+        public ?array $global = null,
     ) {}
 }
