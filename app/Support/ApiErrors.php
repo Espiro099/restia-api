@@ -12,6 +12,7 @@ use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Http\Exceptions\ThrottleRequestsException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Session\TokenMismatchException;
 use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
@@ -45,6 +46,8 @@ final class ApiErrors
             $e instanceof AuthorizationException, $e instanceof AccessDeniedHttpException => self::response('FORBIDDEN', $request),
             // Un ID de otra sucursal y uno inexistente responden igual (aislamiento entre sucursales).
             $e instanceof ModelNotFoundException, $e instanceof NotFoundHttpException => self::response('RESOURCE_NOT_FOUND', $request),
+            // Laravel convierte el CSRF inválido en un 419; el contrato lo responde como 403 (CRED-18).
+            $e instanceof TokenMismatchException, $e instanceof HttpExceptionInterface && $e->getStatusCode() === 419 => self::response('CSRF_TOKEN_MISMATCH', $request),
             $e instanceof ThrottleRequestsException => self::response('TOO_MANY_ATTEMPTS', $request, headers: array_intersect_key($e->getHeaders(), ['Retry-After' => 1])),
             $e instanceof HttpExceptionInterface && $e->getStatusCode() < 500 => self::generic($e->getStatusCode(), $request, $e->getHeaders()),
             default => self::response('INTERNAL_ERROR', $request),

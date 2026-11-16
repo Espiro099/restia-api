@@ -43,7 +43,9 @@ class AuthSession extends Document
 
         return $this->status === self::ACTIVE
             && $this->absolute_expires_at->gt($now)
-            && ($this->client_type !== self::ANDROID || $this->refresh_expires_at->gt($now));
+            && ($this->client_type !== self::ANDROID || $this->refresh_expires_at->gt($now))
+            // Web vence tras 60 min sin actividad (D-36, sección 6).
+            && ($this->client_type !== self::WEB || $this->last_activity_at->gt($now->copy()->subSeconds(config('restia.auth.web_idle_seconds'))));
     }
 
     /** Estado hacia la API: una sesión ACTIVE con vencimiento pasado se informa como EXPIRED. */

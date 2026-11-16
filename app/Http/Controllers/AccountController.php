@@ -9,6 +9,7 @@ use App\Models\AuthSession;
 use App\Models\Branch;
 use App\Models\Device;
 use App\Models\Membership;
+use App\Models\User;
 use App\Support\Api;
 use App\Support\Audit;
 use App\Support\Mongo;
@@ -32,13 +33,23 @@ class AccountController extends Controller
                 Audit::record('auth.logout', 'auth_session', $session->getKey(), self::branchOf($request), $actor);
             }
         });
+        // Web: además se descarta la sesión de Laravel y su token CSRF.
+        if ($session->client_type === AuthSession::WEB && $request->hasSession()) {
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+        }
 
         return Api::noContent();
     }
 
     public function me(Request $request): JsonResponse
     {
-        $user = $request->user();
+        return Api::data(self::meData($request->user(), AuthenticateSession::session($request)));
+    }
+
+    /** Cuerpo de AuthMeResponse: lo devuelven /auth/me y el login Web. @return array<string, mixed> */
+    public static function meData(User $user, AuthSession $current): array
+    {
         $memberships = Membership::query()
             ->where('user_id', new ObjectId($user->getKey()))
             ->where('status', Membership::ACTIVE)
@@ -57,13 +68,11 @@ class AccountController extends Controller
                 'permissions' => $m->permissions(),
             ])->values()->all();
 
-        $current = AuthenticateSession::session($request);
-
-        return Api::data([
+        return [
             'user' => ['id' => $user->uuid, 'name' => $user->name, 'email' => $user->email],
             'memberships' => $data,
             'session' => self::present($current, $current),
-        ]);
+        ];
     }
 
     public function sessions(Request $request): JsonResponse
@@ -73,11 +82,14 @@ class AccountController extends Controller
         $now = now();
         $query = AuthSession::query()->where('user_id', new ObjectId($request->user()->getKey()));
         // EXPIRED no se guarda: es una sesión ACTIVE con algún vencimiento pasado.
+        $idle = $now->copy()->subSeconds(config('restia.auth.web_idle_seconds'));
         match ($filter['status'] ?? null) {
             'ACTIVE' => $query->where('status', 'ACTIVE')->where('absolute_expires_at', '>', $now)
-                ->where(fn ($q) => $q->where('client_type', 'WEB')->orWhere('refresh_expires_at', '>', $now)),
+                ->where(fn ($q) => $q->where(fn ($q) => $q->where('client_type', 'WEB')->where('last_activity_at', '>', $idle))
+                    ->orWhere(fn ($q) => $q->where('client_type', 'ANDROID')->where('refresh_expires_at', '>', $now))),
             'EXPIRED' => $query->where('status', 'ACTIVE')->where(fn ($q) => $q->where('absolute_expires_at', '<=', $now)
-                ->orWhere(fn ($q) => $q->where('client_type', 'ANDROID')->where('refresh_expires_at', '<=', $now))),
+                ->orWhere(fn ($q) => $q->where('client_type', 'ANDROID')->where('refresh_expires_at', '<=', $now))
+                ->orWhere(fn ($q) => $q->where('client_type', 'WEB')->where('last_activity_at', '<=', $idle))),
             'REVOKED' => $query->where('status', 'REVOKED'),
             default => null,
         };

@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Identity\WebAuth;
 use App\Models\AuthSession;
 use App\Models\Device;
 use App\Models\User;
@@ -13,7 +14,7 @@ use MongoDB\BSON\ObjectId;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
- * Bearer de Sanctum, más lo que Sanctum no revisa (D-36): la sesión sigue ACTIVE y en plazo, el usuario
+ * Bearer de Sanctum o cookie de sesión Web, más lo que Sanctum no revisa (D-36): la sesión sigue ACTIVE y en plazo, el usuario
  * está activo y, en Android, el dispositivo también. Todo se consulta en cada petición, así que
  * revocar tiene efecto inmediato. Los permisos nunca viajan en el token.
  */
@@ -25,6 +26,11 @@ class AuthenticateSession
 
     public function handle(Request $request, Closure $next): Response
     {
+        // Web: sin Bearer, la cookie de sesión (solo existe si la petición viene del panel, con CSRF).
+        if ($request->bearerToken() === null && $request->hasSession() && $request->session()->has(WebAuth::SESSION_KEY)) {
+            return $this->web($request, $next);
+        }
+
         $user = Auth::guard('sanctum')->user();
         $token = $user?->currentAccessToken();
         $sessionId = $token?->auth_session_id;
@@ -45,6 +51,23 @@ class AuthenticateSession
         Auth::setUser($user);
         $request->attributes->set(self::SESSION, $session);
         $request->attributes->set(self::DEVICE, $device);
+
+        return $next($request);
+    }
+
+    private function web(Request $request, Closure $next): Response
+    {
+        $session = WebAuth::resolve($request->session()->get(WebAuth::SESSION_KEY));
+        $user = $session ? User::query()->find($session->user_id) : null;
+        if (! $user instanceof User || ! $user->isActive()) {
+            $request->session()->forget(WebAuth::SESSION_KEY);
+            throw new AuthenticationException;
+        }
+
+        Auth::setUser($user);
+        $request->setUserResolver(fn () => $user);
+        $request->attributes->set(self::SESSION, $session);
+        $request->attributes->set(self::DEVICE, null);
 
         return $next($request);
     }

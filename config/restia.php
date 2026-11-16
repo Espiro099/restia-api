@@ -12,6 +12,10 @@ return [
         'rotation_grace_seconds' => 60,
         'enrollment_code_seconds' => 15 * 60,
         'android_sessions_per_user' => 2,
+        // Web (D-36, sección 6): 3 sesiones por usuario, 60 min de inactividad y 16 h de máximo.
+        'web_sessions_per_user' => 3,
+        'web_idle_seconds' => 60 * 60,
+        'web_max_seconds' => 16 * 3600,
         'session_retention_days' => 180,
 
         // Clave HMAC de los refresh tokens. Por omisión se deriva de APP_KEY; rotarla cierra
@@ -63,6 +67,13 @@ return [
     ],
     // Panel Web: los enlaces de contraseña llevan a `<url>/contrasena#<token>` (U-2). Mientras no exista,
     // la sirve esta misma API, así que por omisión apunta a APP_URL.
+    // Transporte (Revision_Seguridad, sección 3). Detrás de un proxy TLS (Apache, Nginx) hay que confiar en él
+    // para que X-Forwarded-Proto marque la petición como segura.
+    'security' => [
+        'force_https' => (bool) env('RESTIA_FORCE_HTTPS', false),
+        'hsts_seconds' => (int) env('RESTIA_HSTS_SECONDS', 31536000),
+        'trusted_proxies' => env('RESTIA_TRUSTED_PROXIES'),
+    ],
     'web' => [
         'url' => env('RESTIA_WEB_URL', env('APP_URL', 'http://127.0.0.1:8000')),
     ],
