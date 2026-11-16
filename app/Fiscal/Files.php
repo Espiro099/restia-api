@@ -34,10 +34,12 @@ final class Files
     private static function pdf(Invoice $invoice, StampResult $result): string
     {
         $issuer = FiscalIssuer::query()->find((string) $invoice->issuer_id);
-        $receiver = (array) $invoice->receiver;
+        // La global va al público en general (F-6).
+        $receiver = $invoice->receiver ? (array) $invoice->receiver
+            : ['rfc' => 'XAXX010101000', 'legalName' => 'PUBLICO EN GENERAL', 'taxRegime' => '616', 'postalCode' => $issuer->postal_code, 'cfdiUse' => 'S01'];
         $money = fn ($v) => '$'.number_format((float) (string) $v, 2);
         $lines = [
-            ['FACTURA '.$invoice->series.'-'.$invoice->folio, 14],
+            [($invoice->scope === 'GLOBAL' ? 'FACTURA GLOBAL ' : 'FACTURA ').$invoice->series.'-'.$invoice->folio, 14],
             ['Folio fiscal: '.$result->fiscalUuid],
             ['Fecha de timbrado: '.$result->stampedAt->setTimezone('America/Mexico_City')->format('Y-m-d H:i:s')],
             [''],

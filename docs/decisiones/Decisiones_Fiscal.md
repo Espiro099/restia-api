@@ -102,6 +102,15 @@ Se conserva lo definido en D-15 y la sección 13 del documento maestro: ciclo co
 - Recomiendo mensual porque, hasta cerrar el mes, un cliente puede pedir su factura sin cancelar nada. Una global diaria obliga a cancelar y reemitir casi cada vez. El régimen del emisor puede limitar esta opción.
 - Excluir una cuenta cancela la global con motivo 04 y crea un lote de reemplazo. La cuenta queda libre solo cuando la global está `CANCELLED`, para respetar el orden del SAT.
 
+**Nota de implementación (factura global):**
+
+- Conceptos: uno por cuenta y tasa, con clave `01010101`, unidad `ACT` y el número de cuenta como `NoIdentificacion`. Sin reembolsos llevan la base y el IVA de la cuenta (C-6). Con un reembolso parcial, lo que queda se reparte entre las tasas y el IVA se calcula sobre ese importe.
+- El periodo se mide por `paid_at` en la zona de la sucursal y debe caber en uno de la periodicidad del emisor. Si alguna cuenta del periodo no se puede facturar (sin datos fiscales o con importes que no cuadran), el lote responde 422 con sus números en lugar de omitirla.
+- La global de reemplazo se timbra solo cuando la original está `CANCELLED`; antes responde `INVOICE_INVALID_STATE`. Hasta entonces la original conserva todas las cuentas. Al cancelarse, las que quedan pasan a la de reemplazo y las excluidas quedan libres.
+- Si la cancelación es rechazada, el lote original ya quedó `SUPERSEDED`, pero su factura sigue vigente con todas las cuentas. Se puede volver a pedir la cancelación con motivo 04, o descartar el reemplazo.
+- Descartar el borrador de una global libera sus cuentas y deja su lote `SUPERSEDED` sin reemplazo.
+- Timbrar o descartar una global exige `invoices.global`, aunque esas operaciones pidan un permiso que el mesero tiene. La global no lleva receptor, así que no se corrige.
+
 **Reembolsos (F-8)**
 
 - El lado comercial nunca espera al fiscal, conforme a D-15.

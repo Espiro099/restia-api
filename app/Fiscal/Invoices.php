@@ -10,6 +10,7 @@ use App\Models\Check;
 use App\Models\FiscalIssuer;
 use App\Models\Invoice;
 use App\Models\InvoiceAllocation;
+use App\Models\InvoiceBatch;
 use App\Models\Payment;
 use App\Models\User;
 use App\Support\Audit;
@@ -48,11 +49,12 @@ final class Invoices
         $branches = $refs('branch_id', Branch::class);
         $issuers = $refs('issuer_id', FiscalIssuer::class);
         $checks = $refs('check_id', Check::class);
+        $batches = $refs('batch_id', InvoiceBatch::class);
         $related = $invoices->flatMap(fn (Invoice $i) => [$i->replaces_invoice_id, ((array) $i->cancellation)['replacement_invoice_id'] ?? null])
             ->filter()->map(fn ($id) => new ObjectId((string) $id))->unique()->values()->all();
         $others = $related ? Invoice::query()->whereIn('_id', $related)->get()->mapWithKeys(fn ($d) => [(string) $d->getKey() => $d->uuid]) : collect();
 
-        return $invoices->map(fn (Invoice $i) => self::shape($i, $branches, $issuers, $checks, $others))->values()->all();
+        return $invoices->map(fn (Invoice $i) => self::shape($i, $branches, $issuers, $checks, $others, $batches))->values()->all();
     }
 
     public static function present(Invoice $invoice): array
@@ -60,7 +62,7 @@ final class Invoices
         return self::presentMany(collect([$invoice]))[0];
     }
 
-    private static function shape(Invoice $i, Collection $branches, Collection $issuers, Collection $checks, Collection $others): array
+    private static function shape(Invoice $i, Collection $branches, Collection $issuers, Collection $checks, Collection $others, Collection $batches): array
     {
         $currency = $i->currency;
         $cancellation = $i->cancellation ? (array) $i->cancellation : null;
@@ -73,7 +75,7 @@ final class Invoices
             'scope' => $i->scope,
             'status' => $i->status,
             'checkId' => $i->check_id ? $checks->get((string) $i->check_id) : null,
-            'batchId' => null,
+            'batchId' => $i->batch_id ? $batches->get((string) $i->batch_id) : null,
             'replacesInvoiceId' => $i->replaces_invoice_id ? $others->get((string) $i->replaces_invoice_id) : null,
             'relatedInvoiceId' => null,
             'refundId' => null,
@@ -134,7 +136,10 @@ final class Invoices
                 }
                 $original = isset($in['replacesInvoiceId']) ? self::replaceable($check, $in['replacesInvoiceId']) : null;
                 if (! $original && $check->active_invoice_id) {
-                    throw new DomainConflict('INVOICE_CHECK_ALREADY_INVOICED');
+                    // F-7: de una global timbrada, la cuenta sale con excludeChecksFromBatch.
+                    $active = Invoice::query()->find((string) $check->active_invoice_id);
+                    $inStampedGlobal = $active?->scope === 'GLOBAL' && ! in_array($active->status, [...Invoice::EDITABLE, Invoice::PENDING_STAMP, Invoice::STAMPING], true);
+                    throw new DomainConflict($inStampedGlobal ? 'INVOICE_CHECK_IN_STAMPED_GLOBAL' : 'INVOICE_CHECK_ALREADY_INVOICED');
                 }
                 [$lines, $subtotal, $tax] = self::concepts($check);
                 $total = bcadd($subtotal, $tax, 2);
@@ -210,7 +215,7 @@ final class Invoices
      *
      * @return array{0: list<array<string, string>>, 1: string, 2: string}
      */
-    private static function concepts(Check $check): array
+    public static function concepts(Check $check): array
     {
         $groups = [];
         $missing = [];
@@ -252,11 +257,20 @@ final class Invoices
         return [$lines, $subtotal, $taxTotal];
     }
 
-    /** La del método con mayor importe confirmado (criterio provisional para pagos mixtos). */
     private static function paymentForm(Check $check): string
     {
+        return self::paymentFormOf([new ObjectId($check->getKey())]);
+    }
+
+    /**
+     * La del método con mayor importe confirmado (criterio provisional para pagos mixtos y para la global).
+     *
+     * @param  list<ObjectId>  $checkIds
+     */
+    public static function paymentFormOf(array $checkIds): string
+    {
         $byMethod = [];
-        foreach (Payment::query()->where('check_id', new ObjectId($check->getKey()))->where('status', Payment::CONFIRMED)->get() as $p) {
+        foreach (Payment::query()->whereIn('check_id', $checkIds)->where('status', Payment::CONFIRMED)->get() as $p) {
             $byMethod[$p->method] = bcadd($byMethod[$p->method] ?? '0', (string) $p->amount, 2);
         }
         uasort($byMethod, fn ($a, $b) => bccomp($b, $a, 2));
@@ -288,7 +302,7 @@ final class Invoices
             if (! in_array($fresh->status, Invoice::EDITABLE, true)) {
                 throw new DomainConflict('INVOICE_INVALID_STATE');
             }
-            self::release($fresh);
+            $fresh->batch_id ? GlobalInvoices::discarded($fresh) : self::release($fresh);
             if ($fresh->replaces_invoice_id) {
                 // La original queda libre para otra sustituta o para cancelarse con otro motivo.
                 Invoice::query()->where('_id', new ObjectId((string) $fresh->replaces_invoice_id))->where('replacement_invoice_id', new ObjectId($fresh->getKey()))
@@ -323,6 +337,9 @@ final class Invoices
                 $issuer = FiscalIssuer::query()->find((string) $fresh->issuer_id);
                 if (! $issuer?->canIssue()) {
                     throw new DomainConflict('FISCAL_ISSUER_NOT_CONFIGURED');
+                }
+                if ($fresh->batch_id) {
+                    GlobalInvoices::assertStampable($fresh);
                 }
                 // La sustituta se relaciona con una factura vigente.
                 if ($fresh->replaces_invoice_id) {
@@ -381,21 +398,26 @@ final class Invoices
                 } elseif ($fresh->replacement_invoice_id) {
                     throw new DomainConflict('INVOICE_INVALID_STATE', ['reason' => 'HAS_REPLACEMENT']);
                 }
-                self::transition($fresh, Invoice::CANCELLATION_REQUESTED, [
-                    'cancellation' => [
-                        'reason_code' => $in['reasonCode'], 'reason' => $in['reason'],
-                        'replacement_invoice_id' => $replacement ? new ObjectId($replacement->getKey()) : null,
-                        'requested_at' => new UTCDateTime(now()), 'sat_status' => null,
-                    ],
-                    'cancel_next_at' => new UTCDateTime(now()), 'last_error' => null,
-                ], $actorId, details: ['reasonCode' => $in['reasonCode']]);
-                Audit::record('invoice.cancellation_requested', 'invoice', $fresh->getKey(), $branchId, $actorId, reason: $in['reason'],
-                    changes: ['reasonCode' => $in['reasonCode'], 'replacementInvoiceId' => $replacement?->uuid]);
-                Outbox::publish('invoice.cancellation_requested', 'invoice', $fresh->getKey(), $branchId,
-                    ['invoiceId' => $fresh->uuid, 'reasonCode' => $in['reasonCode']]);
+                self::markCancellation($fresh, $branchId, $actorId, $in['reasonCode'], $in['reason'], $replacement);
 
                 return [202, self::present($fresh->refresh()), new ObjectId($fresh->getKey())];
             });
+    }
+
+    /** Deja la factura en CANCELLATION_REQUESTED para el proceso interno. Debe correr en una transacción. */
+    public static function markCancellation(Invoice $fresh, ObjectId $branchId, ObjectId $actorId, string $reasonCode, string $reason, ?Invoice $replacement = null): void
+    {
+        self::transition($fresh, Invoice::CANCELLATION_REQUESTED, [
+            'cancellation' => [
+                'reason_code' => $reasonCode, 'reason' => $reason,
+                'replacement_invoice_id' => $replacement ? new ObjectId($replacement->getKey()) : null,
+                'requested_at' => new UTCDateTime(now()), 'sat_status' => null,
+            ],
+            'cancel_next_at' => new UTCDateTime(now()), 'last_error' => null,
+        ], $actorId, details: ['reasonCode' => $reasonCode]);
+        Audit::record('invoice.cancellation_requested', 'invoice', $fresh->getKey(), $branchId, $actorId, reason: $reason,
+            changes: ['reasonCode' => $reasonCode, 'replacementInvoiceId' => $replacement?->uuid]);
+        Outbox::publish('invoice.cancellation_requested', 'invoice', $fresh->getKey(), $branchId, ['invoiceId' => $fresh->uuid, 'reasonCode' => $reasonCode]);
     }
 
     /**
@@ -416,13 +438,12 @@ final class Invoices
 
     // ---------------------------------------------------------------- Ayudas
 
-    /** Libera la cuenta: cierra la asignación y borra la factura activa de la cuenta. */
+    /** Libera las cuentas de la factura (varias si es global): cierra sus asignaciones y borra la factura activa. */
     public static function release(Invoice $invoice): void
     {
-        $now = now();
-        InvoiceAllocation::query()->where('invoice_id', new ObjectId($invoice->getKey()))->where('active', true)->update(['active' => false, 'closed_at' => $now]);
-        Check::query()->where('_id', new ObjectId((string) $invoice->check_id))->where('active_invoice_id', new ObjectId($invoice->getKey()))
-            ->update(['active_invoice_id' => null]);
+        $invoiceId = new ObjectId($invoice->getKey());
+        InvoiceAllocation::query()->where('invoice_id', $invoiceId)->where('active', true)->update(['active' => false, 'closed_at' => now()]);
+        Check::query()->where('branch_id', new ObjectId((string) $invoice->branch_id))->where('active_invoice_id', $invoiceId)->update(['active_invoice_id' => null]);
     }
 
     /** Cambia el estado subiendo la versión y deja el evento. Debe correr en una transacción. */
@@ -441,7 +462,7 @@ final class Invoices
         ]);
     }
 
-    private static function fresh(Invoice $invoice, int $version): Invoice
+    public static function fresh(Invoice $invoice, int $version): Invoice
     {
         $fresh = Invoice::query()->find($invoice->getKey());
         if ((int) $fresh->version !== $version) {

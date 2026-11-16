@@ -116,7 +116,7 @@ final class Cancelling
             Invoices::transition($fresh, $to, ['cancel_next_at' => null, 'cancellation.sat_status' => $satStatus, 'last_error' => $error], null, $providerCode);
             $event = $to === Invoice::CANCELLED ? 'invoice.cancelled' : 'invoice.cancellation_rejected';
             if ($to === Invoice::CANCELLED) {
-                Invoices::release($fresh);
+                $fresh->batch_id ? GlobalInvoices::cancelled($fresh) : Invoices::release($fresh);
             }
             Audit::record($event, 'invoice', $fresh->getKey(), $fresh->branch_id, null, changes: ['satStatus' => $satStatus, 'providerCode' => $providerCode]);
             Outbox::publish($event, 'invoice', $fresh->getKey(), $fresh->branch_id, ['invoiceId' => $fresh->uuid, 'satStatus' => $satStatus]);
