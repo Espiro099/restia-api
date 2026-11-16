@@ -4,6 +4,7 @@ namespace App\Providers;
 
 use App\Fiscal\Pac\Pac;
 use App\Fiscal\Pac\SimulatedPac;
+use App\Fiscal\Pac\SwSapienPac;
 use App\Models\PersonalAccessToken;
 use Illuminate\Support\ServiceProvider;
 use Laravel\Sanctum\Sanctum;
@@ -16,9 +17,10 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        // F-1: el conector del PAC se elige por configuración. Solo existe el simulado.
+        // F-1: el conector del PAC se elige por configuración: el simulado o SW Sapien.
         $this->app->singleton(Pac::class, fn () => match (config('restia.fiscal.pac')) {
             'simulated' => new SimulatedPac,
+            'sw' => new SwSapienPac(config('services.sw')),
             default => throw new RuntimeException('RESTIA_PAC no corresponde a ningún conector.'),
         });
     }
