@@ -125,7 +125,7 @@ Reúne las tablas de estados de cada módulo. Ante una diferencia, manda la deci
 | Respuesta del PAC | `STAMPING` | Proceso interno | Factura, archivos, eventos, outbox | `STAMPED`, `STAMP_FAILED` o `UNKNOWN` | No aplica |
 | Reconciliar | `UNKNOWN` | Consulta al PAC por nuestra referencia | Factura, eventos, auditoría | `STAMPED`, `STAMP_FAILED`, `CANCELLED` o `UNKNOWN` | `FISCAL_STATUS_UNKNOWN`, `INVOICE_INVALID_STATE` |
 | Solicitar cancelación | `STAMPED`, `CANCELLATION_REJECTED` | `If-Match`; motivo SAT; sustituta timbrada si el motivo es 01 | Factura, eventos, auditoría, outbox | `CANCELLATION_REQUESTED` | `VERSION_CONFLICT`, `INVOICE_INVALID_STATE`, `INVOICE_REPLACEMENT_REQUIRED` |
-| El PAC acepta la solicitud | `CANCELLATION_REQUESTED` | Proceso interno | Factura, eventos | `CANCELLATION_IN_PROGRESS` o `UNKNOWN` | No aplica |
+| El PAC acepta la solicitud | `CANCELLATION_REQUESTED` | Proceso interno | Factura, eventos | `CANCELLATION_IN_PROGRESS`, `CANCELLED` o `CANCELLATION_REJECTED`; sin respuesta sigue en `CANCELLATION_REQUESTED` y se repite (ver nota) | No aplica |
 | Resultado del SAT | `CANCELLATION_IN_PROGRESS` | Proceso interno | Factura, asignaciones si se canceló, eventos, outbox | `CANCELLED` o `CANCELLATION_REJECTED` | No aplica |
 
 ## Printing
