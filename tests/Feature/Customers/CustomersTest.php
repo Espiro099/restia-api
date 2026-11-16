@@ -3,6 +3,8 @@
 namespace Tests\Feature\Customers;
 
 use App\Models\Branch;
+use App\Models\Customer;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Tests\Feature\Floor\FloorTestCase;
 
@@ -95,6 +97,26 @@ class CustomersTest extends FloorTestCase
         $audit = DB::connection('mongodb')->table('audit_log')->where('action', 'customer.anonymized')->first();
         $this->assertSame('Lo pidió el cliente', ((array) $audit)['reason']);
         $this->assertSame(1, DB::connection('mongodb')->table('outbox_events')->where('type', 'customer.anonymized')->count());
+    }
+
+    /** Actividad 3.2: teléfono y correo cifrados en reposo con AES-256; la búsqueda usa el índice ciego. */
+    public function test_telefono_y_correo_se_guardan_cifrados(): void
+    {
+        $ana = $this->as('mesero', 'POST', 'customers', $this->ana, $this->key())->assertCreated()->json('data');
+        $raw = (array) DB::connection('mongodb')->table('customers')->where('uuid', $ana['id'])->first();
+
+        $this->assertStringNotContainsString('3312345678', $raw['phone']);
+        $this->assertStringNotContainsString('ana@correo.mx', $raw['email']);
+        $this->assertSame('+523312345678', Crypt::decryptString($raw['phone']));
+        $this->assertSame(Customer::phoneIndex('+523312345678'), $raw['phone_index']);
+        $this->assertSame(64, strlen($raw['phone_index']));
+
+        $this->as('mesero', 'PATCH', "customers/{$ana['id']}", ['phone' => '+523311112222', 'email' => 'nuevo@correo.mx'], ['If-Match' => '"1"'])->assertOk();
+        $raw = (array) DB::connection('mongodb')->table('customers')->where('uuid', $ana['id'])->first();
+        $this->assertSame('+523311112222', Crypt::decryptString($raw['phone']));
+        $this->assertSame('nuevo@correo.mx', Crypt::decryptString($raw['email']));
+        $this->as('mesero', 'POST', 'customers/search', ['phone' => '+523311112222'])->assertJsonCount(1, 'data');
+        $this->as('mesero', 'POST', 'customers/search', ['phone' => '+523312345678'])->assertJsonCount(0, 'data');
     }
 
     /** Casos negativos de casos_negativos.csv para clientes que no cubren las pruebas anteriores. */

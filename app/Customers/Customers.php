@@ -60,7 +60,8 @@ final class Customers
 
         return Idempotency::run($branchId, $key, $actorId, 'createCustomer', Idempotency::hash('createCustomer', $in), function () use ($branchId, $actorId, $in, $present) {
             $customer = Customer::query()->create([
-                'name' => $in['name'], 'phone' => $in['phone'], 'email' => $in['email'] ?? null, 'anonymized_at' => null,
+                'name' => $in['name'], 'phone' => $in['phone'], 'phone_index' => Customer::phoneIndex($in['phone']),
+                'email' => $in['email'] ?? null, 'anonymized_at' => null,
             ]);
             $profile = CustomerBranchProfile::query()->create([
                 'branch_id' => $branchId, 'customer_id' => new ObjectId($customer->getKey()),
@@ -98,7 +99,8 @@ final class Customers
         $profiles = CustomerBranchProfile::query()->where('branch_id', new ObjectId($branch->getKey()))->get()->keyBy(fn ($p) => (string) $p->customer_id);
         $query = Customer::query()->whereIn('_id', $profiles->keys()->map(fn ($id) => new ObjectId($id))->all())->whereNull('anonymized_at');
         if (isset($in['phone'])) {
-            $query->where('phone', $in['phone']);
+            // El teléfono está cifrado: se busca por su índice ciego.
+            $query->where('phone_index', Customer::phoneIndex($in['phone']));
         }
         if (isset($in['name'])) {
             $query->where('name', 'regex', new Regex(preg_quote($in['name'], '/'), 'i'));
@@ -129,7 +131,7 @@ final class Customers
                     $changes[$column] = $in[$field];
                 }
             }
-            if (! $fresh->updateIfVersion($version, $changes)) {
+            if (! $fresh->updateIfVersion($version, Customer::encryptChanges($changes))) {
                 throw new DomainConflict('VERSION_CONFLICT');
             }
             $profileChanges = array_intersect_key($in, self::PROFILE_FIELDS);
@@ -158,7 +160,7 @@ final class Customers
             if ($fresh->anonymized_at) {
                 throw new DomainConflict('CUSTOMER_ANONYMIZED');
             }
-            if (! $fresh->updateIfVersion($version, ['name' => Customer::ANONYMIZED_NAME, 'phone' => null, 'email' => null, 'anonymized_at' => now()])) {
+            if (! $fresh->updateIfVersion($version, ['name' => Customer::ANONYMIZED_NAME, 'phone' => null, 'phone_index' => null, 'email' => null, 'anonymized_at' => now()])) {
                 throw new DomainConflict('VERSION_CONFLICT');
             }
             $customerId = new ObjectId($fresh->getKey());
