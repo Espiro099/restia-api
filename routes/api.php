@@ -23,6 +23,7 @@ use App\Http\Controllers\ReportController;
 use App\Http\Controllers\ReservationController;
 use App\Http\Controllers\ServiceIdentityController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\WebAuthController;
 use Illuminate\Support\Facades\Route;
 
 // Todas las rutas quedan bajo /api/v1, como indica `servers` en openapi/restia-api.yaml.
@@ -41,6 +42,9 @@ Route::controller(PublicQrController::class)->prefix('public')->middleware('qr')
     Route::get('menu', 'menu');
     Route::post('presence', 'presence');
 });
+
+// Login Web (D-36, sección 6): cookie de sesión HttpOnly; el CSRF lo valida el middleware stateful de Sanctum.
+Route::post('auth/login', [WebAuthController::class, 'login']);
 
 // Contraseñas sin sesión (U-2): recuperación por correo y enlace de un solo uso.
 Route::post('auth/password/forgot', [UserController::class, 'forgotPassword']);

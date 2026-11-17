@@ -1,5 +1,6 @@
 <?php
 
+use App\Logging\RedactSensitiveData;
 use Monolog\Handler\NullHandler;
 use Monolog\Handler\StreamHandler;
 use Monolog\Handler\SyslogUdpHandler;
@@ -60,6 +61,8 @@ return [
 
         'single' => [
             'driver' => 'single',
+            // Restia: ningún log guarda contraseñas, tokens, cookies ni datos de tarjeta (CRED-24).
+            'tap' => [RedactSensitiveData::class],
             'path' => storage_path('logs/laravel.log'),
             'level' => env('LOG_LEVEL', 'debug'),
             'replace_placeholders' => true,
@@ -67,6 +70,7 @@ return [
 
         'daily' => [
             'driver' => 'daily',
+            'tap' => [RedactSensitiveData::class],
             'path' => storage_path('logs/laravel.log'),
             'level' => env('LOG_LEVEL', 'debug'),
             'max_files' => env('LOG_DAILY_DAYS', 14),
@@ -100,6 +104,7 @@ return [
                 'connectionString' => 'tls://'.env('PAPERTRAIL_URL').':'.env('PAPERTRAIL_PORT'),
             ],
             'processors' => [PsrLogMessageProcessor::class],
+            'tap' => [RedactSensitiveData::class],
         ],
 
         'stderr' => [
@@ -111,6 +116,7 @@ return [
             ],
             'formatter' => env('LOG_STDERR_FORMATTER'),
             'processors' => [PsrLogMessageProcessor::class],
+            'tap' => [RedactSensitiveData::class],
         ],
 
         'syslog' => [

@@ -469,6 +469,68 @@ Rutas bajo `/branches/{id}/invoices`:
   - Con "SIMULAR NO CANCELABLE", el SAT no admite la cancelación.
 - **Todavía no:** factura global, egresos, y PPD con complementos.
 
+## Seguridad (Actividad 3.2)
+
+**Login Web (D-36, sección 6).** El flujo es `GET /sanctum/csrf-cookie` y luego `POST /api/v1/auth/login` con `X-XSRF-TOKEN`.
+- La cookie de sesión es `HttpOnly`, `SameSite=Lax`, `Secure` en producción, y su contenido va cifrado.
+- La sesión de Laravel solo guarda el UUID de una `auth_session` de tipo `WEB`.
+- Máximo 3 sesiones por usuario, 60 min de inactividad y 16 h en total.
+- Android y los servicios siguen usando Bearer, sin CSRF (CRED-19).
+
+**Transporte.**
+- `SecurityHeaders` agrega CSP, `X-Frame-Options`, `nosniff` y `Referrer-Policy` a toda respuesta, y HSTS solo cuando la petición es HTTPS.
+- Con `RESTIA_FORCE_HTTPS`, lo que llegue por HTTP se redirige con 308.
+- `RESTIA_TRUSTED_PROXIES` indica en qué proxy TLS confiar para leer `X-Forwarded-Proto`.
+
+**Datos en reposo.**
+- Contraseñas: bcrypt con sal y costo 12.
+- Teléfono y correo de clientes: cifrados con AES-256-CBC y HMAC. Para buscar por teléfono exacto se usa `phone_index`, un HMAC-SHA256 del número.
+- Tokens y credenciales: solo se guarda su hash.
+
+**Logs.** `App\Logging\RedactSensitiveData` se aplica a los canales `single`, `daily` y `stderr`.
+- Reemplaza el valor de contraseñas, tokens, cookies, CSD, teléfonos y correos.
+- Enmascara números de tarjeta y tokens Bearer dentro de los mensajes.
+
+En producción se usa `.env.production.example`: `APP_DEBUG=false`, `LOG_LEVEL=warning` y cookies seguras.
+
+### Proxy TLS local
+
+Apache de XAMPP, con una configuración propia en `deploy/apache/` que no toca la de XAMPP. Acepta solo TLS 1.2 y 1.3, con cifrados ECDHE y AEAD.
+- `https://localhost:8443` sirve el panel (`restia-web/dist`) y envía `/api` y `/sanctum` a `php artisan serve`.
+- `http://localhost:8080` redirige a HTTPS con 301.
+
+```bash
+bash deploy/apache/generar-certificado.sh   # autofirmado; imprime la huella SPKI para Android
+```
+
+```powershell
+.\deploy\apache\iniciar.ps1                 # -Stop para detenerlo
+```
+
+En `.env` hay que poner `RESTIA_TRUSTED_PROXIES=127.0.0.1` y `SESSION_SECURE_COOKIE=true`, y agregar `localhost:8443` a `SANCTUM_STATEFUL_DOMAINS`.
+
+### PAC SW Sapien
+
+Se activa con `RESTIA_PAC=sw` y se autentica con una de dos opciones:
+- `SW_TOKEN`, el token "infinito" del portal.
+- `SW_USER` y `SW_PASSWORD`. En este caso el conector pide un token, lo guarda en caché por 2 h y lo renueva ante un 401.
+
+Las rutas siguen el SDK oficial (`lunasoft/sw-sdk-php`):
+- `/v2/security/authenticate`
+- `/certificates/save`
+- `/v4/cfdi33/issue/json/v4`, con la cabecera `customid`
+- `/cfdi33/cancel/{rfc}/{uuid}/{motivo}/{folio}`
+
+El estatus de una cancelación se consulta en el servicio público del SAT.
+
+Prueba contra el sandbox, con los CSD de prueba de SW (developers.sw.com.mx):
+
+```bash
+php artisan restia:sw-sandbox --cer=EKU9003173C9.cer --key=EKU9003173C9.key
+```
+
+Pendiente: SW no ofrece en su API una búsqueda por `customid`. Por eso una factura que queda en `UNKNOWN` se revisa en el Administrador de Timbres.
+
 ## Pruebas del backend
 
 Con el replica set local arrancado:

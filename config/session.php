@@ -47,7 +47,8 @@ return [
     |
     */
 
-    'encrypt' => env('SESSION_ENCRYPT', false),
+    // Restia: el contenido de la sesión se cifra con AES-256-CBC (config app.cipher) antes de guardarse.
+    'encrypt' => env('SESSION_ENCRYPT', true),
 
     /*
     |--------------------------------------------------------------------------
@@ -169,7 +170,8 @@ return [
     |
     */
 
-    'secure' => env('SESSION_SECURE_COOKIE'),
+    // Restia (D-36, sección 6): Secure siempre en producción; en local se activa con SESSION_SECURE_COOKIE.
+    'secure' => env('SESSION_SECURE_COOKIE', env('APP_ENV') === 'production'),
 
     /*
     |--------------------------------------------------------------------------
@@ -182,7 +184,8 @@ return [
     |
     */
 
-    'http_only' => env('SESSION_HTTP_ONLY', true),
+    // Restia: la cookie de sesión nunca es legible desde JavaScript, así que un XSS no la puede robar.
+    'http_only' => true,
 
     /*
     |--------------------------------------------------------------------------

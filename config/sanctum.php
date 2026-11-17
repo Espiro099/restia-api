@@ -20,7 +20,7 @@ return [
 
     'stateful' => explode(',', env('SANCTUM_STATEFUL_DOMAINS', sprintf(
         '%s%s',
-        'localhost,localhost:3000,127.0.0.1,127.0.0.1:8000,::1',
+        'localhost,localhost:3000,localhost:5173,127.0.0.1,127.0.0.1:8000,127.0.0.1:5173,::1',
         Sanctum::currentApplicationUrlWithPort(),
         // Sanctum::currentRequestHost(),
     ))),
@@ -37,7 +37,8 @@ return [
     |
     */
 
-    // Solo Bearer por ahora; la cookie de Web llega con el login Web (D-36, sección 6).
+    // Vacío a propósito: la cookie Web la resuelve AuthenticateSession contra auth_sessions (D-36, sección 6),
+    // no el guard de sesión de Laravel.
     'guard' => [],
 
     /*
