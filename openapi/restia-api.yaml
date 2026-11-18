@@ -24,6 +24,8 @@ tags:
   description: Mesas físicas y su estado operativo derivado
 - name: Table Sessions
   description: Apertura, asignación, separación, cierre y limpieza
+- name: Notifications
+  description: Avisos de cada empleado (campana)
 - name: Reservations
   description: Disponibilidad, reservas, llegada y check-in
 - name: Menu
@@ -13215,6 +13217,170 @@ paths:
           $ref: '#/components/responses/ValidationFailed'
         '500':
           $ref: '#/components/responses/InternalError'
+  /branches/{branchId}/notifications:
+    get:
+      tags:
+      - Notifications
+      operationId: listNotifications
+      summary: Lista los avisos del usuario en la sucursal
+      description: Orden lista, cuenta solicitada y resultado de pagos con terminal. Los crea un proceso desde outbox unos segundos después del evento; `meta.unreadCount` cuenta los no leídos.
+      security:
+      - BearerAuth: []
+      - SessionCookie: []
+      x-restia:
+        actors:
+        - ADMIN
+        - MANAGER
+        - WAITER
+        - KITCHEN
+        branch: Explícita en la ruta
+        permission: Membresía activa en la sucursal; solo avisos propios
+        requiredState: Ninguno
+        idempotent: Sí, operación de lectura
+        requiresVersion: false
+        concurrency: No aplica
+        audit: false
+        outbox: false
+        mode: Síncrono
+        sensitive: Ninguno
+        clients:
+        - Android
+        - Web
+      parameters:
+      - $ref: '#/components/parameters/RequestId'
+      - $ref: '#/components/parameters/BranchId'
+      - $ref: '#/components/parameters/Page'
+      - $ref: '#/components/parameters/PerPage'
+      - name: unread
+        in: query
+        required: false
+        schema:
+          type: string
+          enum:
+          - 'true'
+          - 'false'
+      responses:
+        '200':
+          description: Avisos, los más recientes primero
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/XRequestId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /branches/{branchId}/notifications/read-all:
+    post:
+      tags:
+      - Notifications
+      operationId: readAllNotifications
+      summary: Marca como leídos todos los avisos propios
+      security:
+      - BearerAuth: []
+      - SessionCookie: []
+      x-restia:
+        actors:
+        - ADMIN
+        - MANAGER
+        - WAITER
+        - KITCHEN
+        branch: Explícita en la ruta
+        permission: Membresía activa en la sucursal; solo avisos propios
+        requiredState: Ninguno
+        idempotent: Sí, repetirla no cambia nada
+        requiresVersion: false
+        concurrency: Actualización condicional de los no leídos
+        audit: false
+        outbox: false
+        mode: Síncrono
+        sensitive: Ninguno
+        clients:
+        - Android
+        - Web
+      parameters:
+      - $ref: '#/components/parameters/RequestId'
+      - $ref: '#/components/parameters/XsrfTokenWeb'
+      - $ref: '#/components/parameters/BranchId'
+      responses:
+        '200':
+          description: Cuántos avisos se marcaron
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/XRequestId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationReadAllResponse'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /branches/{branchId}/notifications/{notificationId}/read:
+    post:
+      tags:
+      - Notifications
+      operationId: readNotification
+      summary: Marca un aviso propio como leído
+      description: Un aviso de otro usuario responde 404.
+      security:
+      - BearerAuth: []
+      - SessionCookie: []
+      x-restia:
+        actors:
+        - ADMIN
+        - MANAGER
+        - WAITER
+        - KITCHEN
+        branch: Explícita en la ruta
+        permission: Membresía activa en la sucursal; solo avisos propios
+        requiredState: Ninguno
+        idempotent: Sí, conserva la primera hora de lectura
+        requiresVersion: false
+        concurrency: Solo escribe si aún no estaba leído
+        audit: false
+        outbox: false
+        mode: Síncrono
+        sensitive: Ninguno
+        clients:
+        - Android
+        - Web
+      parameters:
+      - $ref: '#/components/parameters/RequestId'
+      - $ref: '#/components/parameters/XsrfTokenWeb'
+      - $ref: '#/components/parameters/BranchId'
+      - $ref: '#/components/parameters/NotificationId'
+      responses:
+        '200':
+          description: Aviso leído
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/XRequestId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationResponse'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
 components:
   securitySchemes:
     BearerAuth:
@@ -13325,6 +13491,12 @@ components:
         default: 25
     TableId:
       name: tableId
+      in: path
+      required: true
+      schema:
+        $ref: '#/components/schemas/Uuid'
+    NotificationId:
+      name: notificationId
       in: path
       required: true
       schema:
@@ -15685,6 +15857,107 @@ components:
           type: integer
           minimum: 1
           maximum: 2147483647
+    Notification:
+      type: object
+      required:
+      - id
+      - type
+      - title
+      - body
+      - tableNumber
+      - count
+      - readAt
+      - createdAt
+      - updatedAt
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        type:
+          type: string
+          enum:
+          - ORDER_READY
+          - CHECK_REQUESTED
+          - PAYMENT_CONFIRMED
+          - PAYMENT_FAILED
+          - PAYMENT_UNKNOWN
+        title:
+          type: string
+          example: Mesa 4 · orden lista
+        body:
+          type: string
+          example: 3 platillos listos para servir.
+        tableNumber:
+          type: integer
+        sessionId:
+          type: string
+          format: uuid
+          nullable: true
+        checkId:
+          type: string
+          format: uuid
+          nullable: true
+        count:
+          type: integer
+          minimum: 1
+          description: En ORDER_READY, cuántos platillos de la ronda están listos mientras el aviso siga sin leer.
+        readAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          $ref: '#/components/schemas/Timestamp'
+        updatedAt:
+          $ref: '#/components/schemas/Timestamp'
+    NotificationResponse:
+      type: object
+      required:
+      - data
+      - meta
+      properties:
+        data:
+          $ref: '#/components/schemas/Notification'
+        meta:
+          $ref: '#/components/schemas/Meta'
+    NotificationListResponse:
+      type: object
+      required:
+      - data
+      - meta
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Notification'
+        meta:
+          allOf:
+          - $ref: '#/components/schemas/Meta'
+          - type: object
+            required:
+            - unreadCount
+            properties:
+              unreadCount:
+                type: integer
+                minimum: 0
+    NotificationReadAllResponse:
+      type: object
+      required:
+      - data
+      - meta
+      properties:
+        data:
+          type: object
+          required:
+          - updated
+          - unreadCount
+          properties:
+            updated:
+              type: integer
+              minimum: 0
+            unreadCount:
+              type: integer
+              minimum: 0
+        meta:
+          $ref: '#/components/schemas/Meta'
     TableSessionResponse:
       type: object
       required:

@@ -437,7 +437,7 @@ final class Checks
             Audit::record($event, 'check', $fresh->getKey(), $branchId, new ObjectId($actor->getKey()), reason: $reason, changes: [
                 'before' => ['status' => $before], 'after' => ['status' => $fresh->status, 'total' => (string) $fresh->total],
             ]);
-            Outbox::publish($event, 'check', $fresh->getKey(), $branchId, ['checkId' => $fresh->uuid]);
+            Outbox::publish($event, 'check', $fresh->getKey(), $branchId, ['checkId' => $fresh->uuid, 'actorId' => (string) $actor->getKey()]);
         });
 
         return $check->refresh();

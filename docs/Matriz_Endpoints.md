@@ -3,27 +3,27 @@
 **Estado:** generado desde `openapi/restia-api.yaml`
 **Fecha:** 2026-11-02
 
-Cubre las 212 operaciones del contrato. Se regenera con `tools/gen_matrices.py`; no se edita a mano.
+Cubre las 215 operaciones del contrato. Se regenera con `tools/gen_matrices.py`; no se edita a mano.
 
 ## 1. Criterios de la sección 36
 
 | # | Criterio | Operaciones que lo responden |
 |---|---|---|
-| 1 | ¿Quién puede invocarlo? | 212 de 212 |
-| 2 | ¿En qué sucursal? | 212 de 212 |
-| 3 | ¿Qué permiso necesita? | 212 de 212 |
-| 4 | ¿Qué estado requiere? | 212 de 212 |
-| 5 | ¿Qué payload recibe? | 193 de 212 (las otras 19 son escrituras sin cuerpo, porque la ruta basta) |
-| 6 | ¿Qué devuelve? | 212 de 212 |
-| 7 | ¿Qué errores puede producir? | 212 de 212 (`x-restia.conflictCodes` da los 409 exactos) |
-| 8 | ¿Es idempotente? | 212 de 212 |
-| 9 | ¿Requiere versión? | 211 de 212 (Orders por lotes lleva la versión en el cuerpo) |
-| 10 | ¿Qué ocurre con concurrencia? | 212 de 212 |
-| 11 | ¿Genera auditoría? | 212 de 212 |
-| 12 | ¿Genera outbox? | 212 de 212 |
-| 13 | ¿Es síncrono o asíncrono? | 212 de 212 |
-| 14 | ¿Qué datos son sensibles? | 212 de 212 |
-| 15 | ¿Qué cliente lo consume? | 212 de 212 |
+| 1 | ¿Quién puede invocarlo? | 215 de 215 |
+| 2 | ¿En qué sucursal? | 215 de 215 |
+| 3 | ¿Qué permiso necesita? | 215 de 215 |
+| 4 | ¿Qué estado requiere? | 215 de 215 |
+| 5 | ¿Qué payload recibe? | 194 de 215 (las otras 21 son escrituras sin cuerpo, porque la ruta basta) |
+| 6 | ¿Qué devuelve? | 215 de 215 |
+| 7 | ¿Qué errores puede producir? | 215 de 215 (`x-restia.conflictCodes` da los 409 exactos) |
+| 8 | ¿Es idempotente? | 215 de 215 |
+| 9 | ¿Requiere versión? | 214 de 215 (Orders por lotes lleva la versión en el cuerpo) |
+| 10 | ¿Qué ocurre con concurrencia? | 215 de 215 |
+| 11 | ¿Genera auditoría? | 215 de 215 |
+| 12 | ¿Genera outbox? | 215 de 215 |
+| 13 | ¿Es síncrono o asíncrono? | 215 de 215 |
+| 14 | ¿Qué datos son sensibles? | 215 de 215 |
+| 15 | ¿Qué cliente lo consume? | 215 de 215 |
 
 ## 2. Operaciones
 
@@ -99,6 +99,14 @@ Otros actores: identidades de servicio (`reservation-ai`, `printing-agent`) o vi
 | `POST /branches/{branchId}/table-sessions/{sessionId}/tables/{tableId}/cleaning-confirmation` | Sí | Sí | Sí | – | – | tables.clean | Limpieza PENDING de esa mesa con la versión enviada | No | Sí, en efecto | Confirmación | table.cleaned; table_session.closed al liberar la última mesa | Síncrono, en transacción | Android, Web | CLEANING_CONFIRMATION_STALE |
 | `POST /branches/{branchId}/table-sessions/{sessionId}/close` | Sí | Sí | Sí | – | – | table_sessions.close | ACTIVE; cuentas PAID, CANCELLED o REFUNDED; sin unidades PENDING, PREPARING o READY; las cuentas sin unidades válidas ni pagos se cancelan en la misma transacción | Sí | No; If-Match rechaza la repetición con versión anterior | Cierre | table_session.close_requested; reservation.completed si hay reserva vinculada | Síncrono, en transacción | Android, Web | VERSION_CONFLICT, SESSION_NOT_ACTIVE, SESSION_HAS_OPEN_CHECKS, SESSION_HAS_PENDING_UNITS |
 | `POST /branches/{branchId}/table-sessions/{sessionId}/cancel` | Sí | Sí | – | – | – | table_sessions.cancel | ACTIVE; sin unidades, pagos ni mesas en limpieza | Sí | No; If-Match rechaza la repetición con versión anterior | Cancelación, con actor y motivo | table_session.cancelled; la reserva vinculada vuelve a ARRIVED_WAITING | Síncrono, en transacción | Android, Web | VERSION_CONFLICT, SESSION_NOT_ACTIVE, SESSION_HAS_ACTIVITY |
+
+### Notifications (3)
+
+| Operación | ADMIN | MANAGER | WAITER | KITCHEN | Otros | Permiso | Estado requerido | If-Match | Idempotencia | Auditoría | Outbox | Modo | Clientes | Códigos 409 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| `GET /branches/{branchId}/notifications` | Sí | Sí | Sí | Sí | – | Membresía activa en la sucursal; solo avisos propios | Ninguno | No | Sí, operación de lectura | No | No | Síncrono | Android, Web | – |
+| `POST /branches/{branchId}/notifications/read-all` | Sí | Sí | Sí | Sí | – | Membresía activa en la sucursal; solo avisos propios | Ninguno | No | Sí, repetirla no cambia nada | No | No | Síncrono | Android, Web | – |
+| `POST /branches/{branchId}/notifications/{notificationId}/read` | Sí | Sí | Sí | Sí | – | Membresía activa en la sucursal; solo avisos propios | Ninguno | No | Sí, conserva la primera hora de lectura | No | No | Síncrono | Android, Web | – |
 
 ### Reservations (13)
 
