@@ -15,6 +15,7 @@ use App\Http\Controllers\InvoiceBatchController;
 use App\Http\Controllers\InvoiceController;
 use App\Http\Controllers\MemberController;
 use App\Http\Controllers\MobileAuthController;
+use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\PrintingController;
 use App\Http\Controllers\PrintJobController;
@@ -56,6 +57,13 @@ Route::middleware('auth.session')->group(function () {
         Route::get('me', 'me');
         Route::get('sessions', 'sessions');
         Route::post('sessions/{sessionId}/revoke', 'revoke');
+    });
+
+    // Avisos (campana): cada quien ve los suyos; basta la membresía activa.
+    Route::controller(NotificationController::class)->prefix('branches/{branchId}/notifications')->group(function () {
+        Route::get('/', 'index')->middleware('branch');
+        Route::post('read-all', 'readAll')->middleware('branch');
+        Route::post('{notificationId}/read', 'read')->middleware('branch');
     });
 
     Route::controller(DeviceController::class)->prefix('branches/{branchId}/devices')->group(function () {

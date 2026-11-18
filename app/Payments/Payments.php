@@ -321,7 +321,7 @@ final class Payments
         Audit::record($event, $entity, $fresh->getKey(), (string) $fresh->branch_id, new ObjectId($actor->getKey()), reason: $reason, changes: [
             'before' => ['status' => $before], 'after' => ['status' => $fresh->status],
         ]);
-        Outbox::publish($event, $entity, $fresh->getKey(), (string) $fresh->branch_id, [$entity.'Id' => $fresh->uuid]);
+        Outbox::publish($event, $entity, $fresh->getKey(), (string) $fresh->branch_id, [$entity.'Id' => $fresh->uuid, 'actorId' => (string) $actor->getKey()]);
 
         return $fresh;
     }

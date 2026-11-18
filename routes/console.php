@@ -13,6 +13,9 @@ Artisan::command('inspire', function () {
 // Impresión: comandas desde outbox y plazos (PR-5, PR-9). Una comanda no debe esperar un minuto.
 Schedule::command('restia:printing')->everyFiveSeconds()->withoutOverlapping();
 
+// Avisos: orden lista, cuenta solicitada y resultado de pagos desde outbox (campana de la app).
+Schedule::command('restia:notifications')->everyFiveSeconds()->withoutOverlapping();
+
 // Inventario: stock_actual se actualiza segundos después de cada movimiento (I-1).
 Schedule::command('restia:inventory')->everyFiveSeconds()->withoutOverlapping();
 
