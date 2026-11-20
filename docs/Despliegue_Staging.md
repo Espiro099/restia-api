@@ -30,7 +30,7 @@ Nunca van en el repositorio ni en el chat. Render los pide al crear el Blueprint
 
 1. **Atlas.** En *Network Access* agrega las IP de salida del servicio. Render las muestra en el servicio, pestaña *Connect* → *Outbound*. Mientras no existan los servicios, no las conoces: créalos primero y vuelve a este paso si el primer arranque no conecta.
 2. **Render.** *New* → *Blueprint* → elige el repositorio `restia-api`, rama `main`. Render lee `render.yaml`, crea el servicio y el grupo `restia-staging`, y pide los secretos de la tabla.
-3. **Primer despliegue.** Espera a que el servicio quede en *Live*. La base ya tiene las migraciones; si algún día faltan, en el *Shell* del servicio web: `php artisan migrate --force`.
+3. **Primer despliegue.** Espera a que el servicio quede en *Live*. La base ya tiene las migraciones; si algún día faltan, se aplican desde un equipo con acceso a Atlas (`php artisan migrate --force` con su `MONGODB_URI`), porque el *Shell* de Render no existe en el plan gratuito.
 4. **Comprobación.** `https://<tu-servicio>.onrender.com/up` responde 200.
 
 Cada fusión a `main` vuelve a desplegar el servicio (`autoDeploy`).
