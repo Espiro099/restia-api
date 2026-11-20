@@ -1,0 +1,88 @@
+# Ambiente de PRUEBAS de Restia en Render (docs/Despliegue_Staging.md). No es producción:
+# APP_ENV=staging, PAC simulado y correos solo al log.
+# Los valores con `sync: false` son secretos: Render los pide al crear el Blueprint y nunca van en el repo.
+services:
+  - type: web
+    name: restia-api-staging
+    runtime: docker
+    plan: starter
+    branch: main
+    autoDeploy: true
+    envVars:
+      - fromGroup: restia-staging
+      - key: PORT
+        value: "8080"
+      - key: APP_URL
+        sync: false
+      - key: APP_KEY
+        sync: false
+      - key: MONGODB_URI
+        sync: false
+      - key: RESTIA_REFRESH_KEY
+        sync: false
+
+  # Impresión, avisos, inventario, reportes, reservaciones y facturación avanzan aquí (routes/console.php).
+  - type: worker
+    name: restia-tareas-staging
+    runtime: docker
+    plan: starter
+    branch: main
+    autoDeploy: true
+    dockerCommand: php artisan schedule:work
+    envVars:
+      - fromGroup: restia-staging
+      - key: APP_URL
+        sync: false
+      - key: APP_KEY
+        sync: false
+      - key: MONGODB_URI
+        sync: false
+
+envVarGroups:
+  - name: restia-staging
+    envVars:
+      - key: APP_NAME
+        value: Restia
+      # No "production": así siguen disponibles restia:demo y el PAC simulado.
+      - key: APP_ENV
+        value: staging
+      - key: APP_DEBUG
+        value: "false"
+      - key: APP_LOCALE
+        value: es
+      - key: LOG_CHANNEL
+        value: stderr
+      - key: LOG_LEVEL
+        value: info
+      - key: DB_CONNECTION
+        value: mongodb
+      - key: MONGODB_DATABASE
+        value: Restia
+      - key: SESSION_DRIVER
+        value: file
+      - key: SESSION_ENCRYPT
+        value: "true"
+      - key: SESSION_SECURE_COOKIE
+        value: "true"
+      - key: SESSION_SAME_SITE
+        value: lax
+      - key: CACHE_STORE
+        value: file
+      - key: QUEUE_CONNECTION
+        value: sync
+      - key: MAIL_MAILER
+        value: log
+      - key: BCRYPT_ROUNDS
+        value: "12"
+      # Render termina el TLS en su proxy, cuyas direcciones no son fijas; el contenedor no es alcanzable directo.
+      - key: RESTIA_FORCE_HTTPS
+        value: "true"
+      - key: RESTIA_TRUSTED_PROXIES
+        value: "*"
+      - key: RESTIA_PAC
+        value: simulated
+      # Se llenan cuando exista el panel web publicado.
+      - key: RESTIA_CORS_ORIGINS
+        value: ""
+      - key: SANCTUM_STATEFUL_DOMAINS
+        value: ""
