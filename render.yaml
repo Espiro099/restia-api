@@ -1,11 +1,13 @@
 # Ambiente de PRUEBAS de Restia en Render (docs/Despliegue_Staging.md). No es producción:
 # APP_ENV=staging, PAC simulado y correos solo al log.
+# Plan gratuito: el servicio se duerme sin uso y no hay proceso de tareas (los workers son de pago).
+# Para activarlo, cambia `plan` a starter y agrega el worker que está comentado abajo.
 # Los valores con `sync: false` son secretos: Render los pide al crear el Blueprint y nunca van en el repo.
 services:
   - type: web
     name: restia-api-staging
     runtime: docker
-    plan: starter
+    plan: free
     branch: main
     autoDeploy: true
     envVars:
@@ -22,21 +24,21 @@ services:
         sync: false
 
   # Impresión, avisos, inventario, reportes, reservaciones y facturación avanzan aquí (routes/console.php).
-  - type: worker
-    name: restia-tareas-staging
-    runtime: docker
-    plan: starter
-    branch: main
-    autoDeploy: true
-    dockerCommand: php artisan schedule:work
-    envVars:
-      - fromGroup: restia-staging
-      - key: APP_URL
-        sync: false
-      - key: APP_KEY
-        sync: false
-      - key: MONGODB_URI
-        sync: false
+  # - type: worker
+  #   name: restia-tareas-staging
+  #   runtime: docker
+  #   plan: starter
+  #   branch: main
+  #   autoDeploy: true
+  #   dockerCommand: php artisan schedule:work
+  #   envVars:
+  #     - fromGroup: restia-staging
+  #     - key: APP_URL
+  #       sync: false
+  #     - key: APP_KEY
+  #       sync: false
+  #     - key: MONGODB_URI
+  #       sync: false
 
 envVarGroups:
   - name: restia-staging
