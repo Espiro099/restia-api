@@ -57,3 +57,43 @@ jobs:
       - run: php artisan migrate --force
       - run: vendor/bin/pint --test
       - run: php artisan test
+
+  imagen:
+    name: Imagen de Render
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Arranca MongoDB
+        run: >-
+          docker run -d --name mongo --network host -e GLIBC_TUNABLES=glibc.pthread.rseq=1
+          mongo:8.3 --replSet rs-restia --port 27018 --bind_ip 127.0.0.1
+      - run: docker build -t restia-api .
+      - name: Levanta la API y el proceso de tareas como en Render
+        run: |
+          KEY="base64:$(openssl rand -base64 32)"
+          ENVS="-e APP_ENV=staging -e APP_DEBUG=false -e APP_KEY=$KEY -e LOG_CHANNEL=stderr
+            -e MONGODB_URI=mongodb://127.0.0.1:27018/?replicaSet=rs-restia -e MONGODB_DATABASE=restia
+            -e RESTIA_FORCE_HTTPS=true -e RESTIA_TRUSTED_PROXIES=* -e RESTIA_PAC=simulated"
+          for i in $(seq 1 10); do
+            docker run --rm --network host $ENVS restia-api php artisan restia:replica-init --port=27018 && break
+            sleep 3
+          done
+          docker run --rm --network host $ENVS restia-api php artisan migrate --force
+          docker run -d --name api --network host $ENVS restia-api
+          docker run -d --name tareas --network host $ENVS restia-api php artisan schedule:work
+          for i in $(seq 1 20); do
+            curl -fsS -H 'X-Forwarded-Proto: https' http://127.0.0.1:8080/up > /dev/null && break
+            sleep 2
+          done
+          # Detrás del proxy de Render: HTTPS responde, HTTP redirige.
+          curl -fsS -H 'X-Forwarded-Proto: https' http://127.0.0.1:8080/up > /dev/null
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/up)" = 308
+          # Una ruta de la API responde con el formato de error del contrato (401 sin token).
+          curl -s -H 'X-Forwarded-Proto: https' -H 'Accept: application/json' http://127.0.0.1:8080/api/v1/auth/me | grep -q '"code"'
+          sleep 10
+          test "$(docker inspect -f '{{.State.Running}}' tareas)" = true
+      - name: Registros si algo falló
+        if: failure()
+        run: |
+          docker logs api 2>&1 | tail -80 || true
+          docker logs tareas 2>&1 | tail -80 || true
