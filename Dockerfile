@@ -5,6 +5,14 @@ FROM dunglas/frankenphp:1-php8.4-bookworm
 
 RUN install-php-extensions mongodb bcmath intl zip opcache pcntl
 
+# La imagen trae frankenphp con la capacidad cap_net_bind_service (para escuchar en 80/443). Render se niega
+# a ejecutar binarios con capacidades ("exec: frankenphp: Operation not permitted"); aquí se escucha en 8080,
+# así que no hace falta.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libcap2-bin \
+    && setcap -r /usr/local/bin/frankenphp \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
 WORKDIR /app

@@ -68,6 +68,8 @@ jobs:
           docker run -d --name mongo --network host -e GLIBC_TUNABLES=glibc.pthread.rseq=1
           mongo:8.3 --replSet rs-restia --port 27018 --bind_ip 127.0.0.1
       - run: docker build -t restia-api .
+      - name: frankenphp sin capacidades de archivo (Render no ejecuta binarios con capacidades)
+        run: test -z "$(docker run --rm restia-api getcap /usr/local/bin/frankenphp)"
       - name: Levanta la API y el proceso de tareas como en Render
         run: |
           KEY="base64:$(openssl rand -base64 32)"
