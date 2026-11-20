@@ -38,6 +38,8 @@ php artisan serve
 
 `restia:install` crea la primera sucursal y su `ADMIN` (decisión B-2), y solo funciona con la base vacía. Pide los datos o los toma de `--branch-code`, `--branch-name`, `--email` y `--name`. La contraseña se pide sin eco o se lee de `RESTIA_ADMIN_PASSWORD`; nunca va en un argumento.
 
+Si las sucursales se cargaron fuera de la API (por ejemplo, a mano en Atlas), usa `restia:adopt-branches` en lugar de `restia:install`. Asigna un UUID real a cada sucursal cuyo `uuid` no lo sea (sin un UUID válido, la API responde 404 en todas sus rutas) y conserva su `_id` y sus datos. Con `--admin-email` y `--admin-name` crea además el primer `ADMIN` en todas las sucursales, pero solo si todavía no hay usuarios. `--dry-run` muestra lo que cambiaría sin escribir nada.
+
 La API responde en `http://127.0.0.1:8000/api/v1`, y `GET /up` indica si la aplicación está viva.
 
 ## Identidad (fase 3)
