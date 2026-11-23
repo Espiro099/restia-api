@@ -6,6 +6,7 @@ use App\Exceptions\DomainConflict;
 use App\Models\Branch;
 use App\Models\Modifier;
 use App\Models\Product;
+use App\Models\ProductImage;
 use App\Models\ProductPreparationRoute;
 use App\Models\Station;
 use App\Models\User;
@@ -22,7 +23,6 @@ final class Products
 {
     private const FIELDS = [
         'name' => 'name', 'description' => 'description', 'category' => 'category', 'displayOrder' => 'display_order',
-        'imageUrl' => 'image_url',
     ];
 
     /**
@@ -59,7 +59,7 @@ final class Products
             ])->values()->all(),
             'currentRecipeVersion' => $p->current_recipe_version === null ? null : (int) $p->current_recipe_version,
             'fiscal' => self::fiscalOut($p->getAttribute('fiscal')),
-            'imageUrl' => $p->image_url,
+            'imageUrl' => ProductImages::url($p),
             'version' => (int) $p->version,
         ])->values()->all();
     }
@@ -73,7 +73,7 @@ final class Products
             'branch_id' => $branchId, 'code' => $in['code'], 'name' => $in['name'], 'description' => $in['description'] ?? null,
             'category' => $in['category'], 'display_order' => (int) ($in['displayOrder'] ?? 0), 'price' => self::price($in['price']),
             'status' => Product::INACTIVE, 'availability' => 'AVAILABLE', 'modifier_ids' => $modifierIds,
-            'current_recipe_version' => null, 'fiscal' => self::fiscalIn($in['fiscal']), 'image_url' => $in['imageUrl'] ?? null,
+            'current_recipe_version' => null, 'fiscal' => self::fiscalIn($in['fiscal']), 'image_uuid' => null,
         ]));
     }
 
@@ -95,8 +95,20 @@ final class Products
         if (array_key_exists('fiscal', $in)) {
             $changes['fiscal'] = self::fiscalIn($in['fiscal']);
         }
+        // `imageUrl: null` quita la foto (M-12) y borra su archivo en la misma transacción. Si la versión no
+        // coincide, Catalog::change responde VERSION_CONFLICT antes de borrar nada.
+        $after = null;
+        $old = $p->image_uuid;
+        if (array_key_exists('imageUrl', $in) && $old) {
+            $changes['image_uuid'] = null;
+            $after = function () use ($old) {
+                ProductImage::query()->where('uuid', $old)->delete();
 
-        return Catalog::change($branch, $actor, $p, $version, 'product.updated', 'product', fn () => $changes);
+                return ['before' => [], 'after' => []];
+            };
+        }
+
+        return Catalog::change($branch, $actor, $p, $version, 'product.updated', 'product', fn () => $changes, after: $after);
     }
 
     public static function setStatus(Branch $branch, User $actor, Product $p, int $version, string $status, string $reason): Product

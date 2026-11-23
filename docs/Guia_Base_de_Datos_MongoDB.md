@@ -488,10 +488,11 @@ Todas llevan además `_id`, `created_at` y `updated_at`. En los campos solo se l
 
 | Colección | Clase | Tipo | Campos | Índices |
 |---|---|---|---|---|
-| `products` | `Product` | Estado | `uuid`, `branch_id`, `code`, `name`, `description`, `category`, `display_order`, `price`, `status`, `availability`, `modifier_ids`, `current_recipe_version`, `fiscal`, `image_url`, `version` | `unique(uuid)`, `unique(branch_id, code)`, `(branch_id, status, category)` |
+| `products` | `Product` | Estado | `uuid`, `branch_id`, `code`, `name`, `description`, `category`, `display_order`, `price`, `status`, `availability`, `modifier_ids`, `current_recipe_version`, `fiscal`, `image_uuid`, `version` | `unique(uuid)`, `unique(branch_id, code)`, `(branch_id, status, category)` |
 | `modifiers` | `Modifier` | Estado | `uuid`, `branch_id`, `code`, `name`, `min_selections`, `max_selections`, `options[]`, `status`, `version` | `unique(uuid)`, `unique(branch_id, code)` |
 | `recipes` | `Recipe` | Inmutable | `uuid`, `branch_id`, `product_id`, `recipe_version`, `status`, `items[]`, `created_by` | `unique(branch_id, product_id, recipe_version)` |
 | `stations` | `Station` | Estado | `uuid`, `branch_id`, `code`, `name`, `status`, `version` | `unique(uuid)`, `unique(branch_id, code)` |
+| `product_images` | `ProductImage` | Estado | `uuid`, `branch_id`, `product_id`, `content_type`, `data`, `bytes`, `width`, `height` | `unique(uuid)`, `(branch_id, product_id)` |
 | `product_preparation_routes` | `ProductPreparationRoute` | Estado | `branch_id`, `product_id`, `station_id`, `priority` | `unique(branch_id, product_id, station_id)` |
 
 Una receta publicada no se modifica: se crea otra versión y la anterior pasa a `SUPERSEDED` (D-13).

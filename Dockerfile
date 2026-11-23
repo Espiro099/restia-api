@@ -3,7 +3,7 @@
 # La misma imagen corre el proceso de tareas (`php artisan schedule:work`) en el servicio worker.
 FROM dunglas/frankenphp:1-php8.4-bookworm
 
-RUN install-php-extensions mongodb bcmath intl zip opcache pcntl
+RUN install-php-extensions mongodb bcmath intl zip opcache pcntl gd
 
 # La imagen trae frankenphp con la capacidad cap_net_bind_service (para escuchar en 80/443). Render se niega
 # a ejecutar binarios con capacidades ("exec: frankenphp: Operation not permitted"); aquí se escucha en 8080,

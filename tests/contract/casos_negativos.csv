@@ -82,6 +82,7 @@ createProduct,POST,/branches/{branchId}/products,409,CATALOG_CODE_TAKEN
 updateProduct,PATCH,/branches/{branchId}/products/{productId},409,VERSION_CONFLICT
 setProductStatus,POST,/branches/{branchId}/products/{productId}/status,409,VERSION_CONFLICT
 setProductStatus,POST,/branches/{branchId}/products/{productId}/status,409,PRODUCT_NOT_SELLABLE
+uploadProductImage,PUT,/branches/{branchId}/products/{productId}/image,409,VERSION_CONFLICT
 replaceProductRoutes,PUT,/branches/{branchId}/products/{productId}/routes,409,VERSION_CONFLICT
 replaceProductRoutes,PUT,/branches/{branchId}/products/{productId}/routes,409,PRODUCT_NOT_SELLABLE
 publishProductRecipe,POST,/branches/{branchId}/products/{productId}/recipes,409,VERSION_CONFLICT

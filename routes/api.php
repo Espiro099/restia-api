@@ -19,6 +19,7 @@ use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\PrintingController;
 use App\Http\Controllers\PrintJobController;
+use App\Http\Controllers\ProductImageController;
 use App\Http\Controllers\PublicQrController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\ReservationController;
@@ -43,6 +44,9 @@ Route::controller(PublicQrController::class)->prefix('public')->middleware('qr')
     Route::get('menu', 'menu');
     Route::post('presence', 'presence');
 });
+
+// Fotos del menú (M-12): públicas, como el menú QR que las muestra.
+Route::get('public/images/{imageId}', [ProductImageController::class, 'show']);
 
 // Login Web (D-36, sección 6): cookie de sesión HttpOnly; el CSRF lo valida el middleware stateful de Sanctum.
 Route::post('auth/login', [WebAuthController::class, 'login']);
@@ -121,6 +125,7 @@ Route::middleware('auth.session')->group(function () {
         Route::get('products/{productId}', 'product')->middleware('branch:menu.read');
         Route::patch('products/{productId}', 'updateProduct')->middleware('branch:menu.manage');
         Route::post('products/{productId}/status', 'productStatus')->middleware('branch:menu.manage');
+        Route::put('products/{productId}/image', 'productImage')->middleware('branch:menu.manage');
         Route::post('products/{productId}/availability', 'productAvailability')->middleware('branch:menu.set_availability');
         Route::put('products/{productId}/routes', 'productRoutes')->middleware('branch:menu.manage');
     });
