@@ -1,5 +1,5 @@
 # Ambiente de PRUEBAS de Restia en Render (docs/Despliegue_Staging.md). No es producción:
-# APP_ENV=staging, PAC simulado y correos solo al log.
+# APP_ENV=staging y PAC simulado. Los correos (enlaces de contraseña) salen por Resend.
 # Plan gratuito: el servicio se duerme sin uso. No hay worker (son de pago): el programador de tareas corre en el
 # mismo contenedor (RESTIA_RUN_SCHEDULER=true, docker/start.sh) mientras el servicio está despierto. Con un plan de
 # pago, cambia `plan` a starter, quita el comentario del worker y pon RESTIA_RUN_SCHEDULER en false.
@@ -22,6 +22,11 @@ services:
       - key: MONGODB_URI
         sync: false
       - key: RESTIA_REFRESH_KEY
+        sync: false
+      # Correo con Resend (MAIL_MAILER=resend en el grupo): clave de API y remitente de un dominio verificado.
+      - key: RESEND_API_KEY
+        sync: false
+      - key: MAIL_FROM_ADDRESS
         sync: false
 
   # Impresión, avisos, inventario, reportes, reservaciones y facturación avanzan aquí (routes/console.php).
@@ -73,8 +78,11 @@ envVarGroups:
         value: file
       - key: QUEUE_CONNECTION
         value: sync
+      # API HTTP de Resend (app/Mail/ResendTransport.php): el plan gratuito de Render bloquea SMTP.
       - key: MAIL_MAILER
-        value: log
+        value: resend
+      - key: MAIL_FROM_NAME
+        value: Restia
       - key: BCRYPT_ROUNDS
         value: "12"
       # Render termina el TLS en su proxy, cuyas direcciones no son fijas; el contenedor no es alcanzable directo.
