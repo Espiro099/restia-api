@@ -5,7 +5,6 @@ namespace Tests\Feature\Reservations;
 use App\Models\Branch;
 use App\Models\RestaurantTable;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Testing\TestResponse;
 use Tests\Feature\Floor\FloorTestCase;
@@ -15,22 +14,24 @@ class ReservationsTest extends FloorTestCase
 {
     private const TZ = 'America/Mexico_City';
 
+    /** Día de la prueba: una semana después de hoy, así el reloj simulado siempre va hacia adelante. */
+    private string $day;
+
     protected function setUp(): void
     {
         parent::setUp();
-        $this->clock('2026-11-20 10:00');
+        $this->day = Carbon::now(self::TZ)->addWeek()->toDateString();
+        $this->clock('10:00');
     }
 
     /**
-     * Mueve el reloj a una hora local y vuelve a iniciar sesión: el token de acceso dura 15 minutos.
-     * Los contadores de intentos (Throttle) se borran: son de la otra línea de tiempo. Si el reloj va hacia atrás
-     * (el día fijo de la prueba ya pasó), su ventana de 60 s queda en el futuro, no vence nunca y el registro de
-     * dispositivos acaba en 429.
+     * Mueve el reloj a una hora local del día de la prueba y vuelve a iniciar sesión: el token de acceso dura
+     * 15 minutos. El día va después de la hora real del setUp padre: con el reloj hacia atrás, la ventana de
+     * Throttle quedaba en el futuro y el registro de dispositivos acababa en 429.
      */
-    private function clock(string $local): void
+    private function clock(string $time, ?string $date = null): void
     {
-        $this->travelTo(Carbon::parse($local, self::TZ));
-        Cache::flush();
+        $this->travelTo(Carbon::parse(($date ?? $this->day)." $time", self::TZ));
         foreach ($this->staff as $name => $member) {
             $this->staff[$name]['access'] = $this->tokens($member['user'], $this->enrolledDevice($this->branch))['access'];
         }
@@ -38,7 +39,7 @@ class ReservationsTest extends FloorTestCase
 
     private function at(string $time): string
     {
-        return Carbon::parse("2026-11-20 $time", self::TZ)->utc()->format('Y-m-d\TH:i:s\Z');
+        return Carbon::parse("{$this->day} $time", self::TZ)->utc()->format('Y-m-d\TH:i:s\Z');
     }
 
     private function reserve(int $party = 4, string $start = '14:00', string $end = '16:00', array $customer = []): array
@@ -122,7 +123,7 @@ class ReservationsTest extends FloorTestCase
     {
         $r = $this->confirm($this->reserve());
         $this->assertSame($this->tableIds(1), $r['plannedTableIds']);
-        $this->clock('2026-11-20 13:30');
+        $this->clock('13:30');
 
         $body = ['tableIds' => $this->tableIds(1), 'guestCount' => 2];
         $this->as('mesero', 'POST', 'table-sessions', $body, $this->key())->assertStatus(409)
@@ -137,9 +138,9 @@ class ReservationsTest extends FloorTestCase
         $customer = $this->as('mesero', 'POST', 'customers', ['name' => 'Beto Ruiz', 'phone' => '+523398765432'], $this->key())->json('data');
         $a = $this->confirm($this->reserve(2));
         $b = $this->confirm($this->reserve(2, '14:00', '16:00', ['customerId' => $customer['id'], 'name' => 'Beto Ruiz', 'phone' => '+523398765432']));
-        $this->clock('2026-11-20 13:55');
+        $this->clock('13:55');
         $a = $this->act('mesero', 'arrive', $a)->assertOk()->assertJsonPath('data.status', 'ARRIVED_WAITING')->json('data');
-        $this->clock('2026-11-20 13:56');
+        $this->clock('13:56');
         $b = $this->act('mesero', 'arrive', $b)->assertOk()->json('data');
         $this->act('mesero', 'arrive', $b)->assertStatus(409)->assertJsonPath('error.code', 'RESERVATION_INVALID_STATE');
 
@@ -172,7 +173,7 @@ class ReservationsTest extends FloorTestCase
     {
         $r = $this->confirm($this->reserve());
         $this->act('mesero', 'no-show', $r)->assertStatus(409)->assertJsonPath('error.code', 'RESERVATION_INVALID_STATE');
-        $this->clock('2026-11-20 14:16');
+        $this->clock('14:16');
         $this->act('mesero', 'no-show', $r)->assertOk()->assertJsonPath('data.status', 'NO_SHOW')->assertJsonPath('data.plannedTableIds', []);
 
         $other = $this->reserve(2, '18:00', '19:00');
@@ -194,16 +195,17 @@ class ReservationsTest extends FloorTestCase
     {
         $pending = $this->reserve(2, '13:00', '14:00');
         $confirmed = $this->confirm($this->reserve(2, '13:00', '14:00'));
-        $this->clock('2026-11-20 13:20');
+        $this->clock('13:20');
         $this->artisan('restia:reservations')->assertSuccessful();
         $this->as('mesero', 'GET', "reservations/{$pending['id']}")->assertJsonPath('data.status', 'CANCELLED');
         $this->as('mesero', 'GET', "reservations/{$confirmed['id']}")->assertJsonPath('data.status', 'NO_SHOW');
 
         // A los 12 meses del fin se borran nombre, teléfono y notas; antes no.
-        $this->clock('2027-11-20 13:59');
+        $yearLater = Carbon::parse($this->day)->addMonths(12)->toDateString();
+        $this->clock('13:59', $yearLater);
         $this->artisan('restia:reservations')->assertSuccessful();
         $this->as('mesero', 'GET', "reservations/{$pending['id']}")->assertJsonPath('data.customer.name', 'Ana López');
-        $this->clock('2027-11-20 14:01');
+        $this->clock('14:01', $yearLater);
         $this->artisan('restia:reservations')->expectsOutputToContain('datos borrados 2')->assertSuccessful();
         $this->as('mesero', 'GET', "reservations/{$pending['id']}")->assertJsonPath('data.customer.name', 'Cliente anonimizado')
             ->assertJsonPath('data.customer.phone', null)->assertJsonPath('data.notes', null);
@@ -234,17 +236,17 @@ class ReservationsTest extends FloorTestCase
         $code($this->as('mesero', 'PATCH', "reservations/{$b['id']}", ['notes' => 'Ventana'], ['If-Match' => '"'.$b['version'].'"'] + $key), 'IDEMPOTENCY_KEY_REUSED');
         $a = $this->as('mesero', 'GET', "reservations/{$a['id']}")->json('data');
         $b = $this->as('mesero', 'GET', "reservations/{$b['id']}")->json('data');
-        $this->clock('2026-11-20 13:50');
+        $this->clock('13:50');
         $reuse('arrive', $a, $b);
         $a = $this->as('mesero', 'GET', "reservations/{$a['id']}")->json('data');
         $reuse('check-in', $a, $b, ['tableIds' => $this->tableIds(5)]);
         $c = $this->reserve(2, '18:00', '19:00');
         $d = $this->reserve(2, '18:00', '19:00');
         $reuse('cancel', $c, $d, ['reason' => 'Prueba de clave']);
-        $this->clock('2026-11-20 10:00');
+        $this->clock('10:00');
         $e = $this->confirm($this->reserve(2, '12:00', '13:00'));
         $f = $this->confirm($this->reserve(2, '12:00', '13:00'));
-        $this->clock('2026-11-20 12:20');
+        $this->clock('12:20');
         $reuse('no-show', $e, $f);
 
         // Versión vieja en cada transición.
