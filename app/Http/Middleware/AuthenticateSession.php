@@ -5,6 +5,7 @@ namespace App\Http\Middleware;
 use App\Identity\WebAuth;
 use App\Models\AuthSession;
 use App\Models\Device;
+use App\Models\PersonalAccessToken;
 use App\Models\User;
 use Closure;
 use Illuminate\Auth\AuthenticationException;
@@ -40,12 +41,12 @@ class AuthenticateSession
             if (app()->environment('testing')) {
                 $raw = (string) $request->bearerToken();
                 $tid = explode('|', $raw)[0] ?? '';
-                $tok = \App\Models\PersonalAccessToken::query()->find($tid);
+                $tok = PersonalAccessToken::query()->find($tid);
                 fwrite(STDERR, 'DBG401 '.json_encode([
                     'now' => now()->toIso8601String(), 'user' => $user?->getKey(), 'tokenFound' => (bool) $tok,
                     'tokenSession' => $tok ? (string) $tok->auth_session_id : null,
                     'session' => $session?->only(['status', 'revoked_reason', 'revoke_reason', 'reason', 'absolute_expires_at', 'refresh_expires_at', 'created_at', 'client_type']),
-                    'sessionsOfUser' => $tok ? \App\Models\AuthSession::query()->where('user_id', $tok->tokenable_id)->get()->map->only(['status', 'revoked_reason', 'revoke_reason', 'reason', 'created_at'])->all() : null,
+                    'sessionsOfUser' => $tok ? AuthSession::query()->where('user_id', $tok->tokenable_id)->get()->map->only(['status', 'revoked_reason', 'revoke_reason', 'reason', 'created_at'])->all() : null,
                 ]).PHP_EOL);
             }
             throw new AuthenticationException;
