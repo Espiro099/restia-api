@@ -1,6 +1,6 @@
 # Ambiente de pruebas en Render
 
-Ambiente compartido del equipo, **no de producción**: usa la base `Restia` de MongoDB Atlas, PAC simulado (no timbra ante el SAT) y los correos van al log. Las pruebas automáticas siguen corriendo contra la base local.
+Ambiente compartido del equipo, **no de producción**: usa la base `Restia` de MongoDB Atlas, PAC simulado (no timbra ante el SAT) y los correos salen por Resend. Las pruebas automáticas siguen corriendo contra la base local.
 
 ## Qué se publica
 
@@ -25,6 +25,20 @@ Nunca van en el repositorio ni en el chat. Render los pide al crear el Blueprint
 | `MONGODB_URI` | web (y worker) | Cadena `mongodb+srv://…` de un usuario de Atlas con `readWrite` solo sobre `Restia`. |
 | `RESTIA_REFRESH_KEY` | web | Cualquier texto aleatorio largo, por ejemplo `php -r "echo bin2hex(random_bytes(32));"`. Cambiarla cierra todas las sesiones de Android. |
 | `APP_URL` | web (y worker) | La dirección que asigne Render, por ejemplo `https://restia-api-staging.onrender.com`. Los enlaces de contraseña y los QR la usan. |
+| `RESEND_API_KEY` | web (y worker) | En resend.com: *API Keys* → *Create API Key*, permiso *Sending access*. Empieza con `re_`. |
+| `MAIL_FROM_ADDRESS` | web (y worker) | Remitente de un dominio verificado en Resend, por ejemplo `no-responder@tudominio.mx`. |
+
+## Correo (Resend)
+
+Los enlaces de "Olvidé mi contraseña" salen por la API HTTP de Resend (`MAIL_MAILER=resend`, `app/Mail/ResendTransport.php`); el plan gratuito de Render bloquea los puertos SMTP. El plan gratuito de Resend manda 3,000 correos al mes y 100 al día.
+
+1. Crea la cuenta en resend.com.
+2. *Domains* → *Add Domain* con un dominio propio y agrega en su DNS los registros que indica (SPF y DKIM). Espera a que quede *Verified*. Sin dominio verificado, Resend solo deja mandar desde `onboarding@resend.dev` y **solo al correo dueño de la cuenta**: sirve para probar, no para el equipo.
+3. *API Keys* → *Create API Key* con *Sending access*.
+4. En Render, servicio `restia-api-staging` → *Environment*: `RESEND_API_KEY` y `MAIL_FROM_ADDRESS`. Guarda y despliega.
+5. Prueba: en el panel, *¿Olvidaste tu contraseña?* con tu correo. Si no llega, los registros del servicio dicen por qué ("Resend respondió 403: …"); el enlace nunca se escribe en ellos.
+
+Sin `RESEND_API_KEY` la API no falla: la respuesta de "Olvidé mi contraseña" es la misma, pero el correo no sale y queda un aviso en los registros.
 
 ## Pasos
 
@@ -37,7 +51,7 @@ Cada fusión a `main` vuelve a desplegar el servicio (`autoDeploy`).
 
 ## Pendientes conocidos
 
-- **Correo.** `MAIL_MAILER=log`: los enlaces para que un empleado defina su contraseña quedan en los registros del servicio, no le llegan. Para mandarlos hace falta un proveedor SMTP.
+- **Primera contraseña de un empleado.** El enlace que genera el panel (*Personal* → *Enlace de contraseña*) no se manda por correo: el gerente lo copia y se lo pasa. Solo "Olvidé mi contraseña" manda correo.
 - **Panel web.** Cuando se publique, llenar `RESTIA_CORS_ORIGINS` y `SANCTUM_STATEFUL_DOMAINS` con su dirección.
 - **App Android.** Necesita una versión compilada con la dirección de este servicio, y que su `CertificatePinning` acepte su certificado.
 - **Sesiones y caché** viven en el disco del contenedor: un nuevo despliegue cierra las sesiones del panel web. Las de Android no se pierden (están en MongoDB).

@@ -5,7 +5,9 @@ namespace App\Providers;
 use App\Fiscal\Pac\Pac;
 use App\Fiscal\Pac\SimulatedPac;
 use App\Fiscal\Pac\SwSapienPac;
+use App\Mail\ResendTransport;
 use App\Models\PersonalAccessToken;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\ServiceProvider;
 use Laravel\Sanctum\Sanctum;
 use RuntimeException;
@@ -32,5 +34,8 @@ class AppServiceProvider extends ServiceProvider
     {
         // Probado en la prueba técnica: el modelo de Sanctum sobre MongoDB (Resultados_Prueba_Tecnica.md, prueba 1).
         Sanctum::usePersonalAccessTokenModel(PersonalAccessToken::class);
+
+        // Reemplaza el transporte "resend" de Laravel, que pide la librería resend/resend-php, por uno sobre Http.
+        Mail::extend('resend', fn () => new ResendTransport(config('services.resend.key')));
     }
 }
