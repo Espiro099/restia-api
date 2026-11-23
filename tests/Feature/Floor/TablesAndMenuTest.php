@@ -23,6 +23,9 @@ class TablesAndMenuTest extends FloorTestCase
         $etag = $r->headers->get('ETag');
         $this->assertNotEmpty($etag);
         $this->as('cocina', 'GET', 'tables', headers: ['If-None-Match' => $etag])->assertStatus(304)->assertHeader('ETag', $etag);
+        // Detrás de Caddy (FrankenPHP) la respuesta comprimida lleva el ETag con sufijo: "…-gzip", "…-br".
+        $compressed = substr($etag, 0, -1).'-gzip"';
+        $this->as('cocina', 'GET', 'tables', headers: ['If-None-Match' => $compressed])->assertStatus(304);
 
         $this->openSession(1);
         // Cambió el estado de una mesa: el ETag anterior ya no coincide.

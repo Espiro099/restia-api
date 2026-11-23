@@ -68,6 +68,18 @@ class BranchesTest extends FloorTestCase
         $this->as('admin', 'PATCH', '', ['businessDayCutoff' => '05:00'], ['If-Match' => $this->version()])->assertOk()->assertJsonPath('data.businessDayCutoff', '05:00');
     }
 
+    /** Caddy (FrankenPHP) agrega el sufijo de compresión al ETag; el panel lo devuelve tal cual en If-Match. */
+    public function test_if_match_con_etag_de_respuesta_comprimida(): void
+    {
+        $etag = $this->version();
+        $this->as('admin', 'PATCH', '', ['phone' => '+523311111111'], ['If-Match' => substr($etag, 0, -1).'-br"'])->assertOk();
+        $this->as('admin', 'PATCH', '', ['phone' => '+523322222222'], ['If-Match' => 'W/'.substr($this->version(), 0, -1).'-gzip"'])->assertOk();
+        // Un sufijo no cambia la versión: una vieja sigue chocando.
+        $this->as('admin', 'PATCH', '', ['phone' => '+523333333333'], ['If-Match' => substr($etag, 0, -1).'-br"'])
+            ->assertStatus(409)->assertJsonPath('error.code', 'VERSION_CONFLICT');
+        $this->as('admin', 'PATCH', '', ['phone' => '+523333333333'], ['If-Match' => '"1-otra"'])->assertStatus(409);
+    }
+
     public function test_desactivar_solo_sin_operacion_y_reactivar(): void
     {
         $session = $this->openSession(2);
