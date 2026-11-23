@@ -3,8 +3,10 @@
 namespace App\Notifications;
 
 use App\Floor\TableSessions;
+use App\Inventory\Quantity;
 use App\Models\Branch;
 use App\Models\Check;
+use App\Models\Ingredient;
 use App\Models\Membership;
 use App\Models\Notification;
 use App\Models\Order;
@@ -28,6 +30,8 @@ use MongoDB\BSON\UTCDateTime;
  *   y a quien cierra caja, menos a quien la pidió.
  * - `payment.confirmed|failed|unknown`: a quien registró el pago, si el resultado lo dio otra persona
  *   o el sistema (un PENDING que venció).
+ * - `ingredient.low_stock`: a quien administra el inventario (gerente y administrador), para que
+ *   compre. Mientras no lo lea, un nuevo aviso del mismo insumo actualiza el anterior.
  *
  * Como impresión, cada evento se marca en `handled_by` en la misma transacción que sus avisos, así
  * que procesarlo dos veces no los duplica.
@@ -36,7 +40,10 @@ final class Notifications
 {
     public const CONSUMER = 'notifications';
 
-    private const EVENTS = ['order_unit.ready', 'check.requested', 'payment.confirmed', 'payment.failed', 'payment.unknown'];
+    private const EVENTS = ['order_unit.ready', 'check.requested', 'payment.confirmed', 'payment.failed', 'payment.unknown', 'ingredient.low_stock'];
+
+    /** Unidad base del insumo, como se lee en el aviso. */
+    private const UNITS = ['G' => 'g', 'KG' => 'kg', 'ML' => 'ml', 'L' => 'l', 'PIECE' => 'pzas.'];
 
     private const KEEP_DAYS = 30;
 
@@ -56,6 +63,7 @@ final class Notifications
                     $stale => null,
                     $event['type'] === 'order_unit.ready' => self::orderReady($event),
                     $event['type'] === 'check.requested' => self::checkRequested($event),
+                    $event['type'] === 'ingredient.low_stock' => self::lowStock($event),
                     default => self::paymentResult($event),
                 };
                 DB::connection('mongodb')->table('outbox_events')->where('id', $event['id'])
@@ -155,13 +163,45 @@ final class Notifications
         self::create((string) $check->branch_id, $creator, $type, $session, $check, $table, ['title' => $title, 'body' => $body]);
     }
 
-    private static function create(string $branchId, string $userId, string $type, TableSession $session, ?Check $check, int $table, array $fields): void
+    private static function lowStock(array $event): void
+    {
+        $ingredient = Ingredient::query()->find((string) $event['source_id']);
+        if (! $ingredient || $ingredient->status !== Ingredient::ACTIVE) {
+            return;
+        }
+        // Lo que dice ahora el insumo, no el evento: si ya se surtió, no hay que avisar.
+        $stock = Quantity::out($ingredient->stock_actual);
+        $min = Quantity::out($ingredient->min_stock);
+        if (! Quantity::less($stock, $min)) {
+            return;
+        }
+        $branchId = (string) $ingredient->branch_id;
+        $unit = self::UNITS[$ingredient->base_unit] ?? strtolower((string) $ingredient->base_unit);
+        $fields = [
+            'title' => "Stock bajo · {$ingredient->name}",
+            'body' => "Quedan $stock $unit; el mínimo es $min $unit.",
+        ];
+        $managers = Membership::query()->where('branch_id', new ObjectId($branchId))->where('status', Membership::ACTIVE)->get()
+            ->filter(fn (Membership $m) => $m->can('inventory.manage'))->map(fn ($m) => (string) $m->user_id)->unique();
+        foreach ($managers as $userId) {
+            $group = 'LOW_STOCK:'.$ingredient->getKey().':'.$userId;
+            $open = Notification::query()->where('group_key', $group)->whereNull('read_at')->first();
+            if ($open) {
+                $open->update($fields);
+
+                continue;
+            }
+            self::create($branchId, $userId, Notification::LOW_STOCK, null, null, null, $fields + ['group_key' => $group]);
+        }
+    }
+
+    private static function create(string $branchId, string $userId, string $type, ?TableSession $session, ?Check $check, ?int $table, array $fields): void
     {
         Notification::query()->create($fields + [
             'branch_id' => new ObjectId($branchId),
             'user_id' => new ObjectId($userId),
             'type' => $type,
-            'session_id' => new ObjectId($session->getKey()),
+            'session_id' => $session ? new ObjectId($session->getKey()) : null,
             'check_id' => $check ? new ObjectId($check->getKey()) : null,
             'table_number' => $table,
             'count' => $fields['count'] ?? 1,

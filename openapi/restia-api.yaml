@@ -16017,6 +16017,7 @@ components:
           - PAYMENT_CONFIRMED
           - PAYMENT_FAILED
           - PAYMENT_UNKNOWN
+          - LOW_STOCK
         title:
           type: string
           example: Mesa 4 · orden lista
@@ -16025,6 +16026,8 @@ components:
           example: 3 platillos listos para servir.
         tableNumber:
           type: integer
+          nullable: true
+          description: Null en avisos que no son de una mesa (LOW_STOCK).
         sessionId:
           type: string
           format: uuid

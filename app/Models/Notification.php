@@ -5,7 +5,7 @@ namespace App\Models;
 use App\Models\Casts\ObjectId;
 
 /**
- * Aviso para un empleado en una sucursal: orden lista, cuenta solicitada o resultado de un pago.
+ * Aviso para un empleado en una sucursal: orden lista, cuenta solicitada, resultado de un pago o stock bajo.
  * Lo crea el consumidor de outbox (App\Notifications\Notifications); solo cambia `read_at`.
  */
 class Notification extends Document
@@ -19,6 +19,8 @@ class Notification extends Document
     public const PAYMENT_FAILED = 'PAYMENT_FAILED';
 
     public const PAYMENT_UNKNOWN = 'PAYMENT_UNKNOWN';
+
+    public const LOW_STOCK = 'LOW_STOCK';
 
     protected $table = 'notifications';
 

@@ -1,0 +1,22 @@
+# Staging en el plan gratuito de Render se duerme tras 15 minutos sin peticiones, y con él se detiene el
+# programador de tareas (avisos, inventario, impresión, reportes) que corre en el mismo contenedor
+# (RESTIA_RUN_SCHEDULER). Un ping cada 10 minutos lo mantiene despierto. Un servicio despierto todo el mes
+# gasta unas 744 de las 750 horas gratuitas de Render: no conviene tener otro servicio gratuito encendido.
+# Al pasar a un plan de pago con worker, este flujo ya no hace falta.
+name: Mantener staging despierto
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  ping:
+    name: Ping a /up
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Despertar la API de staging
+        run: curl --fail --silent --show-error --retry 3 --retry-delay 20 --max-time 90 -o /dev/null https://restia-api-staging.onrender.com/up
