@@ -94,6 +94,20 @@ jobs:
           curl -s -H 'X-Forwarded-Proto: https' -H 'Accept: application/json' http://127.0.0.1:8080/api/v1/auth/me | grep -q '"code"'
           sleep 10
           test "$(docker inspect -f '{{.State.Running}}' tareas)" = true
+      - name: Plan gratuito, API y tareas en un solo contenedor
+        run: |
+          KEY="base64:$(openssl rand -base64 32)"
+          docker run -d --name juntos --network host -e SERVER_NAME=:8081 -e RESTIA_RUN_SCHEDULER=true \
+            -e APP_ENV=staging -e APP_DEBUG=false -e APP_KEY=$KEY -e LOG_CHANNEL=stderr \
+            -e MONGODB_URI=mongodb://127.0.0.1:27018/?replicaSet=rs-restia -e MONGODB_DATABASE=restia \
+            -e RESTIA_FORCE_HTTPS=true -e "RESTIA_TRUSTED_PROXIES=*" -e RESTIA_PAC=simulated restia-api
+          for i in $(seq 1 20); do
+            curl -fsS -H 'X-Forwarded-Proto: https' http://127.0.0.1:8081/up > /dev/null && break
+            sleep 2
+          done
+          curl -fsS -H 'X-Forwarded-Proto: https' http://127.0.0.1:8081/up > /dev/null
+          sleep 5
+          docker top juntos | grep -q 'schedule:work'
       - name: Registros si algo falló
         if: failure()
         run: |
