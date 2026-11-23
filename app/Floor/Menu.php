@@ -2,6 +2,7 @@
 
 namespace App\Floor;
 
+use App\Catalog\ProductImages;
 use App\Models\Branch;
 use App\Models\Modifier;
 use App\Models\Product;
@@ -50,7 +51,7 @@ final class Menu
                 'price' => Floor::money($p->price),
                 'availability' => $p->availability,
                 'modifierIds' => $ids,
-                'imageUrl' => $p->image_url,
+                'imageUrl' => ProductImages::url($p),
             ];
         })->all();
 

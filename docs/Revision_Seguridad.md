@@ -20,7 +20,7 @@
 | 1 | **Crítica** | Laravel 11 ya no recibe parches de seguridad desde 2026-03-12 | Resuelto: Laravel 13 confirmado |
 | 2 | **Alta** | Robo de cuenta entre sucursales: un `ADMIN` de una sucursal podía generar el enlace de contraseña de un `ADMIN` de otra | Corregido; SEC-1 aprobada |
 | 3 | **Alta** | `Money` aceptaba negativos en peticiones: un pago de `-100` o una propina negativa pasaban el esquema | Corregido |
-| 4 | **Alta** | `imageUrl` admitía `javascript:` y `data:`, y se muestra en el menú público | Corregido: solo `https://` |
+| 4 | **Alta** | `imageUrl` admitía `javascript:` y `data:`, y se muestra en el menú público | Corregido: solo `https://`. Después (M-12) la foto se sube a la API, que la vuelve a codificar como JPEG; ya no se acepta una URL |
 | 5 | Media | Búsqueda y consulta de clientes sin límite de uso, lo que permitía extraer la base | Corregido: `429` |
 | 6 | Media | Generar enlaces de contraseña y códigos de alta sin límite de uso | Corregido: `429` |
 | 7 | Media | 11 listas y 12 números sin tope en peticiones | Corregido |

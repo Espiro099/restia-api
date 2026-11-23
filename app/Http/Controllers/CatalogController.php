@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Catalog\Modifiers;
+use App\Catalog\ProductImages;
 use App\Catalog\Products;
 use App\Catalog\Stations;
 use App\Catalog\TableAdmin;
@@ -16,6 +17,7 @@ use App\Models\RestaurantTable;
 use App\Models\Station;
 use App\Support\Api;
 use App\Support\Floor;
+use App\Support\Multipart;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -158,6 +160,16 @@ class CatalogController extends Controller
         return $this->productResponse($branch, Products::update($branch, $request->user(), $p, $version, $in));
     }
 
+    /** M-12: la foto llega como multipart (campo `image`) y la API la vuelve a codificar. */
+    public function productImage(Request $request, string $branchId, string $productId): JsonResponse
+    {
+        $version = Floor::ifMatch($request);
+        $in = Multipart::read($request, ['image'], [], ProductImages::MAX_UPLOAD_BYTES, 0);
+        [$branch, $p] = $this->find($request, Product::class, $productId);
+
+        return $this->productResponse($branch, ProductImages::store($branch, $request->user(), $p, $version, $in['image']));
+    }
+
     public function productStatus(Request $request, string $branchId, string $productId): JsonResponse
     {
         $version = Floor::ifMatch($request);
@@ -262,7 +274,8 @@ class CatalogController extends Controller
             'fiscal.satUnitCode' => ['required_with:fiscal', 'string', 'regex:/^[A-Z0-9]{2,3}$/'],
             'fiscal.taxObject' => ['required_with:fiscal', 'string', 'regex:/^[0-9]{2}$/'],
             'fiscal.taxRate' => ['required_with:fiscal', 'string', 'regex:/^0(\.\d{1,6})?$/'],
-            'imageUrl' => ['sometimes', 'nullable', 'string', 'max:2048', 'url:https'],
+            // La foto se sube con PUT .../image (M-12); aquí solo se puede quitar, con null.
+            'imageUrl' => $create ? ['prohibited'] : ['sometimes', 'prohibited'],
         ] + $this->money('price', $create, false);
     }
 

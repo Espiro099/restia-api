@@ -21,6 +21,7 @@ Se conserva D-13: recetas versionadas e históricamente inmutables, y rutas en `
 | **M-9** | Menú para clientes | `GET /menu` completo, con `ETag` y `304` (agrega 304 a la sección 30) | Solo los listados por recurso |
 | **M-10** | Categorías | Campo de texto `category` y `displayOrder` | Colección `categories` |
 | **M-11** | Permisos | Matriz de la sección 4 | Ajustar por rol |
+| **M-12** | Foto del producto | Se sube a la API (`PUT .../products/{productId}/image`, multipart). La API la reduce a 1200 px por lado, la vuelve a codificar como JPEG sin metadatos y la guarda en MongoDB (`product_images`); se sirve sin sesión en `GET /public/images/{imageId}` con caché permanente. Se quita con `PATCH` e `imageUrl: null` | URL `https://` externa: dependía de otros sitios y obligaba a abrir la CSP del panel |
 
 ## 2. M-2: contradicción resuelta con la opción A
 
@@ -88,7 +89,8 @@ Los campos propuestos y que el precio incluya impuestos se deben revisar con qui
 
 ## 6. Cambios al modelo físico
 
-- **`products`:** `uuid`, `branch_id`, `code`, `name`, `description`, `category`, `display_order`, `price`, `status`, `availability`, `modifier_ids`, `current_recipe_version`, `fiscal`, `image_url`, `version`.
+- **`products`:** `uuid`, `branch_id`, `code`, `name`, `description`, `category`, `display_order`, `price`, `status`, `availability`, `modifier_ids`, `current_recipe_version`, `fiscal`, `image_uuid`, `version`.
+- **`product_images`** (M-12): `uuid`, `branch_id`, `product_id`, `content_type`, `data` (binario), `bytes`, `width`, `height`. Una por producto; la anterior se borra al cambiarla.
 - **`modifiers`:** `uuid`, `branch_id`, `code`, `name`, `min_selections`, `max_selections`, `options[]`, `status`, `version`.
 - **`recipes`:** `uuid`, `branch_id`, `product_id`, `recipe_version`, `status`, `items[]`, `created_by`, `created_at`.
 - **`stations`:** `uuid`, `branch_id`, `code`, `name`, `status`, `version`.

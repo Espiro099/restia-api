@@ -3,27 +3,27 @@
 **Estado:** generado desde `openapi/restia-api.yaml`
 **Fecha:** 2026-11-02
 
-Cubre las 215 operaciones del contrato. Se regenera con `tools/gen_matrices.py`; no se edita a mano.
+Cubre las 217 operaciones del contrato. Se regenera con `tools/gen_matrices.py`; no se edita a mano.
 
 ## 1. Criterios de la sección 36
 
 | # | Criterio | Operaciones que lo responden |
 |---|---|---|
-| 1 | ¿Quién puede invocarlo? | 215 de 215 |
-| 2 | ¿En qué sucursal? | 215 de 215 |
-| 3 | ¿Qué permiso necesita? | 215 de 215 |
-| 4 | ¿Qué estado requiere? | 215 de 215 |
-| 5 | ¿Qué payload recibe? | 194 de 215 (las otras 21 son escrituras sin cuerpo, porque la ruta basta) |
-| 6 | ¿Qué devuelve? | 215 de 215 |
-| 7 | ¿Qué errores puede producir? | 215 de 215 (`x-restia.conflictCodes` da los 409 exactos) |
-| 8 | ¿Es idempotente? | 215 de 215 |
-| 9 | ¿Requiere versión? | 214 de 215 (Orders por lotes lleva la versión en el cuerpo) |
-| 10 | ¿Qué ocurre con concurrencia? | 215 de 215 |
-| 11 | ¿Genera auditoría? | 215 de 215 |
-| 12 | ¿Genera outbox? | 215 de 215 |
-| 13 | ¿Es síncrono o asíncrono? | 215 de 215 |
-| 14 | ¿Qué datos son sensibles? | 215 de 215 |
-| 15 | ¿Qué cliente lo consume? | 215 de 215 |
+| 1 | ¿Quién puede invocarlo? | 217 de 217 |
+| 2 | ¿En qué sucursal? | 217 de 217 |
+| 3 | ¿Qué permiso necesita? | 217 de 217 |
+| 4 | ¿Qué estado requiere? | 217 de 217 |
+| 5 | ¿Qué payload recibe? | 196 de 217 (las otras 21 son escrituras sin cuerpo, porque la ruta basta) |
+| 6 | ¿Qué devuelve? | 217 de 217 |
+| 7 | ¿Qué errores puede producir? | 217 de 217 (`x-restia.conflictCodes` da los 409 exactos) |
+| 8 | ¿Es idempotente? | 217 de 217 |
+| 9 | ¿Requiere versión? | 216 de 217 (Orders por lotes lleva la versión en el cuerpo) |
+| 10 | ¿Qué ocurre con concurrencia? | 217 de 217 |
+| 11 | ¿Genera auditoría? | 217 de 217 |
+| 12 | ¿Genera outbox? | 217 de 217 |
+| 13 | ¿Es síncrono o asíncrono? | 217 de 217 |
+| 14 | ¿Qué datos son sensibles? | 217 de 217 |
+| 15 | ¿Qué cliente lo consume? | 217 de 217 |
 
 ## 2. Operaciones
 
@@ -126,7 +126,7 @@ Otros actores: identidades de servicio (`reservation-ai`, `printing-agent`) o vi
 | `POST /branches/{branchId}/reservations/{reservationId}/no-show` | Sí | Sí | Sí | – | – | reservations.mark_no_show | CONFIRMED, sin llegada y pasada la tolerancia | Sí | Sí, con Idempotency-Key | Cambio de estado | reservation.no_show | Síncrono, en transacción | Android, Web | IDEMPOTENCY_KEY_REUSED, VERSION_CONFLICT, RESERVATION_INVALID_STATE |
 | `GET /branches/{branchId}/reservations/policy` | – | – | – | – | reservation-ai | reservations.policy | Sucursal autorizada para la identidad | No | Sí, operación de lectura | No | No | Síncrono | IA | – |
 
-### Menu (21)
+### Menu (22)
 
 | Operación | ADMIN | MANAGER | WAITER | KITCHEN | Otros | Permiso | Estado requerido | If-Match | Idempotencia | Auditoría | Outbox | Modo | Clientes | Códigos 409 |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
@@ -146,6 +146,7 @@ Otros actores: identidades de servicio (`reservation-ai`, `printing-agent`) o vi
 | `PATCH /branches/{branchId}/products/{productId}` | Sí | Sí | – | – | – | menu.manage | Cualquiera | Sí | No; If-Match rechaza la repetición con versión anterior | Valores anteriores y nuevos | product.updated | Síncrono, en transacción | Web | VERSION_CONFLICT |
 | `POST /branches/{branchId}/products/{productId}/status` | Sí | Sí | – | – | – | menu.manage | Para activar: al menos una ruta activa | Sí | Sí, en efecto | Cambio de estado, con actor y motivo | product.status_changed | Síncrono, en transacción | Web | VERSION_CONFLICT, PRODUCT_NOT_SELLABLE |
 | `POST /branches/{branchId}/products/{productId}/availability` | Sí | Sí | Sí | Sí | – | menu.set_availability | Cualquiera | No | Sí, en efecto | Cambio de disponibilidad | product.availability_changed | Síncrono, en transacción | Android, Web | – |
+| `PUT /branches/{branchId}/products/{productId}/image` | Sí | Sí | – | – | – | menu.manage | Cualquiera | Sí | Sí, en efecto | Cambio de foto, con sus medidas; nunca el contenido | product.image_changed | Síncrono, en transacción | Web | VERSION_CONFLICT |
 | `PUT /branches/{branchId}/products/{productId}/routes` | Sí | Sí | – | – | – | menu.manage | Estaciones activas; un producto activo debe conservar al menos una ruta | Sí | Sí, en efecto | Rutas anteriores y nuevas | product.routes_changed | Síncrono, en transacción | Web | VERSION_CONFLICT, PRODUCT_NOT_SELLABLE |
 | `GET /branches/{branchId}/products/{productId}/recipes` | Sí | Sí | – | Sí | – | recipes.read | Ninguno | No | Sí, operación de lectura | No | No | Síncrono | Android, Web | – |
 | `POST /branches/{branchId}/products/{productId}/recipes` | Sí | Sí | – | – | – | recipes.manage | Ingredientes existentes | Sí | No; If-Match rechaza la repetición con versión anterior | Publicación | recipe.published | Síncrono, en transacción | Web | VERSION_CONFLICT |
@@ -297,12 +298,13 @@ Otros actores: identidades de servicio (`reservation-ai`, `printing-agent`) o vi
 | `POST /print-agent/attempts/{attemptId}/start` | – | – | – | – | printing-agent | printing-agent | CLAIMED, con este intento vigente | No | Sí, en efecto | No | No | Síncrono | printing-agent | PRINT_JOB_LEASE_LOST |
 | `POST /print-agent/attempts/{attemptId}/result` | – | – | – | – | printing-agent | printing-agent | PRINTING, o UNKNOWN por vencimiento, con este intento vigente | No | Sí, en efecto | No | print_job.failed o print_job.unknown | Síncrono | printing-agent | PRINT_JOB_LEASE_LOST |
 
-### Public QR (3)
+### Public QR (4)
 
 | Operación | ADMIN | MANAGER | WAITER | KITCHEN | Otros | Permiso | Estado requerido | If-Match | Idempotencia | Auditoría | Outbox | Modo | Clientes | Códigos 409 |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | `GET /public/context` | – | – | – | – | Visitante con token QR | Token QR válido | Sucursal activa; mesa distinta de INACTIVE | No | Sí, operación de lectura | No | No | Síncrono | QR público | – |
 | `GET /public/menu` | – | – | – | – | Visitante con token QR | Token QR válido | Sucursal activa; mesa distinta de INACTIVE | No | Sí, operación de lectura | No | No | Síncrono | QR público | – |
+| `GET /public/images/{imageId}` | – | – | – | – | Cualquiera con la URL | Ninguno; la URL sale del menú | La foto sigue asignada a su producto | No | Sí, operación de lectura | No | No | Síncrono | Web, Android, QR público | – |
 | `POST /public/presence` | – | – | – | – | Visitante con token QR | Token QR válido | Sucursal activa; mesa distinta de INACTIVE | No | Sí, en efecto | No | No | Síncrono | QR público | – |
 
 ### Users (8)

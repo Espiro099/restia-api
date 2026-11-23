@@ -3893,6 +3893,78 @@ paths:
           $ref: '#/components/responses/InternalError'
         '503':
           $ref: '#/components/responses/ServiceBusy'
+  /branches/{branchId}/products/{productId}/image:
+    put:
+      tags:
+      - Menu
+      operationId: uploadProductImage
+      summary: Sube o cambia la foto de un producto
+      description: JPG, PNG o WebP de hasta 2 MB y al menos 100 px por lado. La API la reduce a 1200 px por
+        lado como máximo y la vuelve a codificar como JPEG, sin metadatos. La foto anterior se borra. Para
+        quitarla, PATCH del producto con imageUrl null.
+      security:
+      - SessionCookie: []
+      x-restia:
+        actors:
+        - ADMIN
+        - MANAGER
+        branch: Explícita en la ruta
+        permission: menu.manage
+        requiredState: Cualquiera
+        idempotent: Sí, en efecto
+        requiresVersion: true
+        concurrency: If-Match con actualización condicional por version
+        audit: Cambio de foto, con sus medidas; nunca el contenido
+        outbox: product.image_changed
+        mode: Síncrono, en transacción
+        sensitive: Ninguno
+        clients:
+        - Web
+        conflictCodes:
+        - VERSION_CONFLICT
+      parameters:
+      - $ref: '#/components/parameters/RequestId'
+      - $ref: '#/components/parameters/XsrfTokenRequired'
+      - $ref: '#/components/parameters/BranchId'
+      - $ref: '#/components/parameters/ProductId'
+      - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ProductImageRequest'
+            encoding:
+              image:
+                contentType: image/jpeg, image/png, image/webp
+      responses:
+        '200':
+          description: Foto actualizada
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/XRequestId'
+            ETag:
+              $ref: '#/components/headers/ETag'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductResponse'
+        '400':
+          $ref: '#/components/responses/VersionRequired'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/MenuConflict'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceBusy'
   /branches/{branchId}/products/{productId}/routes:
     put:
       tags:
@@ -11544,6 +11616,65 @@ paths:
           $ref: '#/components/responses/TooManyAttempts'
         '500':
           $ref: '#/components/responses/InternalError'
+  /public/images/{imageId}:
+    get:
+      tags:
+      - Public QR
+      operationId: getProductImage
+      summary: Devuelve la foto de un producto
+      description: Sin autenticación, como el menú que la muestra. Siempre JPEG. Cada foto nueva tiene otro
+        identificador, así que la respuesta se puede guardar en caché sin límite.
+      security:
+      - {}
+      x-restia:
+        actors:
+        - Cualquiera con la URL
+        branch: Implícita en la foto
+        permission: Ninguno; la URL sale del menú
+        requiredState: La foto sigue asignada a su producto
+        idempotent: Sí, operación de lectura
+        requiresVersion: false
+        concurrency: No aplica
+        audit: false
+        outbox: false
+        mode: Síncrono
+        sensitive: Ninguno
+        clients:
+        - Web
+        - Android
+        - QR público
+      parameters:
+      - $ref: '#/components/parameters/RequestId'
+      - $ref: '#/components/parameters/IfNoneMatch'
+      - $ref: '#/components/parameters/ImageId'
+      responses:
+        '200':
+          description: Foto
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/XRequestId'
+            ETag:
+              $ref: '#/components/headers/ETag'
+            Cache-Control:
+              description: public, max-age=31536000, immutable
+              schema:
+                type: string
+          content:
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+        '304':
+          description: Sin cambios desde el ETag enviado
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/XRequestId'
+            ETag:
+              $ref: '#/components/headers/ETag'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
   /public/presence:
     post:
       tags:
@@ -13534,6 +13665,12 @@ components:
         $ref: '#/components/schemas/Uuid'
     ProductId:
       name: productId
+      in: path
+      required: true
+      schema:
+        $ref: '#/components/schemas/Uuid'
+    ImageId:
+      name: imageId
       in: path
       required: true
       schema:
@@ -16601,6 +16738,7 @@ components:
           format: uri
           nullable: true
           maxLength: 2048
+          description: Foto del producto en GET /public/images/{imageId}; null si no tiene.
         version:
           type: integer
           minimum: 1
@@ -16650,12 +16788,6 @@ components:
           maxItems: 50
         fiscal:
           $ref: '#/components/schemas/ProductFiscal'
-        imageUrl:
-          type: string
-          format: uri
-          nullable: true
-          maxLength: 2048
-          pattern: ^https://
     ProductUpdateRequest:
       type: object
       additionalProperties: false
@@ -16689,10 +16821,10 @@ components:
           $ref: '#/components/schemas/ProductFiscal'
         imageUrl:
           type: string
-          format: uri
           nullable: true
-          maxLength: 2048
-          pattern: ^https://
+          enum:
+          - null
+          description: Solo null, para quitar la foto. La foto se sube con PUT .../image.
     ProductAvailabilityRequest:
       type: object
       required:
@@ -16832,6 +16964,7 @@ components:
           format: uri
           nullable: true
           maxLength: 2048
+          description: Foto del producto en GET /public/images/{imageId}; null si no tiene.
     MenuModifier:
       type: object
       required:
@@ -18929,6 +19062,17 @@ components:
           minLength: 1
           maxLength: 256
           writeOnly: true
+    ProductImageRequest:
+      type: object
+      required:
+      - image
+      additionalProperties: false
+      properties:
+        image:
+          type: string
+          format: binary
+          description: JPG, PNG o WebP
+          maxLength: 2097152
     BranchFiscalIssuerRequest:
       type: object
       required:
@@ -20340,6 +20484,8 @@ components:
           type: string
           format: uri
           nullable: true
+          maxLength: 2048
+          description: Foto del producto en GET /public/images/{imageId}; null si no tiene.
     PublicMenu:
       type: object
       required:

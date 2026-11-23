@@ -88,7 +88,7 @@ class Demo extends Command
                     'branch_id' => $branchId, 'code' => $code, 'name' => $name, 'description' => null, 'category' => $category,
                     'display_order' => $order, 'price' => bcadd($price, '0', 2), 'status' => Product::ACTIVE, 'availability' => $availability,
                     'modifier_ids' => array_map(fn ($m) => new ObjectId($m->getKey()), $modifiers),
-                    'current_recipe_version' => null, 'image_url' => null,
+                    'current_recipe_version' => null, 'image_uuid' => null,
                     // Claves SAT de ejemplo (servicio de alimentos, unidad de servicio, IVA 16 %); validar con contabilidad.
                     'fiscal' => ['sat_product_code' => '90101501', 'sat_unit_code' => 'E48', 'tax_object' => '02', 'tax_rate' => '0.160000'],
                 ]);
