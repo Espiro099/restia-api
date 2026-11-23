@@ -5,6 +5,7 @@ namespace Tests\Feature\Reservations;
 use App\Models\Branch;
 use App\Models\RestaurantTable;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Testing\TestResponse;
 use Tests\Feature\Floor\FloorTestCase;
@@ -20,10 +21,16 @@ class ReservationsTest extends FloorTestCase
         $this->clock('2026-11-20 10:00');
     }
 
-    /** Mueve el reloj a una hora local y vuelve a iniciar sesión: el token de acceso dura 15 minutos. */
+    /**
+     * Mueve el reloj a una hora local y vuelve a iniciar sesión: el token de acceso dura 15 minutos.
+     * Los contadores de intentos (Throttle) se borran: son de la otra línea de tiempo. Si el reloj va hacia atrás
+     * (el día fijo de la prueba ya pasó), su ventana de 60 s queda en el futuro, no vence nunca y el registro de
+     * dispositivos acaba en 429.
+     */
     private function clock(string $local): void
     {
         $this->travelTo(Carbon::parse($local, self::TZ));
+        Cache::flush();
         foreach ($this->staff as $name => $member) {
             $this->staff[$name]['access'] = $this->tokens($member['user'], $this->enrolledDevice($this->branch))['access'];
         }
