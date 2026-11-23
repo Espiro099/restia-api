@@ -603,7 +603,6 @@ Cómo modelar cada colección está en `docs/Guia_Base_de_Datos_MongoDB.md`.
 | `docs/Plan_Implementacion.md` | Fases, RACI, riesgos y listas de verificación. |
 | `docs/decisiones/` | Decisiones aprobadas por módulo y D-36 (credenciales). |
 | `docs/` (resto) | Catálogo de errores, matrices, pruebas de contrato y revisiones. |
-| `docs/prueba-tecnica/` | Código y resultados de la prueba técnica de Laravel 13 y de la guía. No es código de producción. |
 | `tests/contract/` | Pruebas del contrato en Python. |
 | `postman/` | Colección y ambiente local. |
 | `tools/` | Scripts que generan las matrices a partir del contrato. |
@@ -637,8 +636,6 @@ python tools/gen_permissions.py
 ```
 
 La integración continua falla si `config/errors.php` o `config/permissions.php` no coinciden con lo generado.
-
-`tools/apply_conflict_codes.py` y `tools/apply_security_fixes.py` se usaron una sola vez para aplicar revisiones al contrato. Se conservan como registro; no hace falta volver a ejecutarlos.
 
 ## Cambios al contrato
 
