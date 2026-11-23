@@ -63,8 +63,15 @@ final class Floor
     }
 
     /**
-     * Versión del header If-Match: acepta `"8"`, `W/"8"` y `8`. Sin el header responde
-     * 400 VERSION_REQUIRED; con un valor que no es una versión, 409 VERSION_CONFLICT.
+     * Sufijo que el servidor web agrega al ETag cuando comprime la respuesta: Caddy (FrankenPHP, la imagen de
+     * Render) manda `"8-br"` o `"8-gzip"` en vez de `"8"`, y los clientes lo devuelven tal cual.
+     */
+    private const COMPRESSION_SUFFIX = '(?:-(?:br|gzip|zstd|deflate))?';
+
+    /**
+     * Versión del header If-Match: acepta `"8"`, `W/"8"`, `8` y el ETag de una respuesta comprimida
+     * (`"8-br"`). Sin el header responde 400 VERSION_REQUIRED; con un valor que no es una versión,
+     * 409 VERSION_CONFLICT.
      */
     public static function ifMatch(Request $request): int
     {
@@ -72,7 +79,7 @@ final class Floor
         if ($sent === '') {
             throw new DomainConflict('VERSION_REQUIRED');
         }
-        if (! preg_match('/^(?:W\/)?"?([1-9][0-9]{0,9})"?$/', $sent, $m)) {
+        if (! preg_match('/^(?:W\/)?"?([1-9][0-9]{0,9})'.self::COMPRESSION_SUFFIX.'"?$/', $sent, $m)) {
             throw new DomainConflict('VERSION_CONFLICT');
         }
 
@@ -91,8 +98,8 @@ final class Floor
             return false;
         }
         foreach (explode(',', $sent) as $candidate) {
-            $candidate = trim($candidate);
-            if ($candidate === '*' || $candidate === $etag || $candidate === 'W/'.$etag) {
+            $candidate = preg_replace('/^W\/|'.self::COMPRESSION_SUFFIX.'(?="$)/', '', trim($candidate));
+            if ($candidate === '*' || $candidate === $etag) {
                 return true;
             }
         }
