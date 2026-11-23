@@ -8,8 +8,8 @@ Ambiente compartido del equipo, **no de producción**: usa la base `Restia` de M
 
 Limitaciones del plan gratuito:
 
-- **Se duerme** tras unos minutos sin uso: la primera petición después tarda cerca de un minuto, y la app puede marcar error de conexión en ese intento.
-- **No hay proceso de tareas** (`php artisan schedule:work`): los workers son de pago. Sin él no avanzan la cola de impresión, los avisos, el inventario, los reportes, las reservaciones ni la facturación. Sí funcionan el acceso, las mesas, los pedidos, la cocina, las cuentas, los cobros y la caja.
+- **Se duerme** tras 15 minutos sin uso: la primera petición después tarda cerca de un minuto, y la app puede marcar error de conexión en ese intento. El flujo `.github/workflows/mantener-despierto.yml` le hace un ping a `/up` cada 10 minutos para que no se duerma. GitHub no garantiza la hora exacta de los flujos programados, así que alguna vez puede dormirse un rato. Encendido todo el mes gasta unas 744 de las 750 horas gratuitas de Render.
+- **No hay worker** (los workers son de pago). Con `RESTIA_RUN_SCHEDULER=true` el programador de tareas (`php artisan schedule:work`) corre dentro del mismo contenedor web, pero solo mientras está despierto. Dormido, no avanzan la cola de impresión, los avisos, el inventario, los reportes, las reservaciones ni la facturación; al despertar se pone al día.
 
 Para el sistema completo, en `render.yaml` cambia `plan: free` a `starter` y quita el comentario del worker `restia-tareas-staging`; Render pedirá una tarjeta. La CI ya prueba la imagen con los dos procesos.
 

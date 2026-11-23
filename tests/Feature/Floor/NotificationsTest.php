@@ -159,4 +159,61 @@ class NotificationsTest extends FloorTestCase
         $this->assertSame(0, $this->inbox('mesero')['meta']['unreadCount']);
         $this->assertCount(2, $this->inbox('mesero')['data']);
     }
+
+    private function tomato(string $initial): string
+    {
+        $id = $this->as('gerente', 'POST', 'ingredients', ['code' => 'TOMATE', 'name' => 'Jitomate', 'baseUnit' => 'KG', 'minStock' => '3'])
+            ->assertCreated()->json('data.id');
+        $this->adjust($id, $initial, 'Stock inicial');
+
+        return $id;
+    }
+
+    private function adjust(string $ingredient, string $quantity, string $reason): void
+    {
+        $this->as('gerente', 'POST', 'inventory-movements', ['ingredientId' => $ingredient, 'type' => 'ADJUSTMENT', 'quantity' => $quantity, 'reason' => $reason], $this->key())
+            ->assertCreated();
+        $this->artisan('restia:inventory')->assertSuccessful();
+    }
+
+    private function waste(string $ingredient, string $quantity): void
+    {
+        $this->as('cocina', 'POST', 'inventory-movements', ['ingredientId' => $ingredient, 'type' => 'WASTE', 'quantity' => $quantity, 'reason' => 'Se echó a perder'], $this->key())
+            ->assertCreated();
+        $this->artisan('restia:inventory')->assertSuccessful();
+        Notifications::run();
+    }
+
+    public function test_stock_bajo_avisa_al_gerente_cuando_cocina_registra_merma(): void
+    {
+        $tomato = $this->tomato('5');
+        $this->waste($tomato, '1');
+        $this->assertSame([], $this->inbox('gerente')['data'], 'con 4 kg sigue arriba del mínimo');
+
+        $this->waste($tomato, '2.5');
+        $inbox = $this->inbox('gerente');
+        $this->assertSame(1, $inbox['meta']['unreadCount']);
+        $notice = $inbox['data'][0];
+        $this->assertSame(['LOW_STOCK', 'Stock bajo · Jitomate', 'Quedan 1.5 kg; el mínimo es 3 kg.', null, null, null],
+            [$notice['type'], $notice['title'], $notice['body'], $notice['tableNumber'], $notice['sessionId'], $notice['checkId']]);
+        $this->assertSame([], $this->inbox('cocina')['data']);
+        $this->assertSame([], $this->inbox('mesero')['data']);
+
+        // Se surte y vuelve a bajar sin que el gerente lo haya leído: el mismo aviso, actualizado.
+        $this->adjust($tomato, '4', 'Llegó el proveedor');
+        $this->waste($tomato, '4.5');
+        $inbox = $this->inbox('gerente');
+        $this->assertSame([1, 1, 'Quedan 1 kg; el mínimo es 3 kg.'], [$inbox['meta']['unreadCount'], count($inbox['data']), $inbox['data'][0]['body']]);
+    }
+
+    public function test_stock_bajo_no_avisa_si_ya_se_surtio(): void
+    {
+        // Baja del mínimo y, antes de que se procese el aviso, llega mercancía.
+        $tomato = $this->tomato('5');
+        $this->adjust($tomato, '-3', 'Conteo rápido');
+        $this->assertSame(1, DB::connection('mongodb')->table('outbox_events')->where('type', 'ingredient.low_stock')->count());
+        $this->adjust($tomato, '10', 'Llegó el proveedor');
+        Notifications::run();
+        $this->assertSame([], $this->inbox('gerente')['data']);
+    }
 }
