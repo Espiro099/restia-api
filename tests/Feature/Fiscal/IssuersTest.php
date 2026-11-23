@@ -11,6 +11,7 @@ use App\Fiscal\Pac\StampRequest;
 use App\Fiscal\Pac\StampResult;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Symfony\Component\HttpFoundation\File\UploadedFile as SymfonyFile;
 use Tests\Feature\Floor\FloorTestCase;
 
 /** Emisores fiscales (F-12, F-13) con el PAC simulado. */
@@ -81,6 +82,22 @@ class IssuersTest extends FloorTestCase
         // Repetir no cambia la versión.
         $this->as('admin', 'POST', "/fiscal-issuers/$id/status", ['status' => 'ACTIVE', 'reason' => 'Listo'], ['If-Match' => '"3"'])->assertOk()->assertHeader('ETag', '"3"');
         $this->assertSame('Listo', DB::connection('mongodb')->table('audit_log')->where('action', 'fiscal_issuer.status_changed')->first()->reason);
+    }
+
+    /**
+     * FrankenPHP (la imagen de Render) sí interpreta multipart en PUT: los archivos llegan ya en `$request->files`
+     * como UploadedFile de Symfony, no en el cuerpo crudo.
+     */
+    public function test_csd_con_archivos_ya_interpretados_por_el_servidor(): void
+    {
+        $id = $this->create()['id'];
+        $file = fn (string $name) => new SymfonyFile(base_path("tests/Fixtures/csd/$name"), $name, 'application/octet-stream', null, true);
+        $this->app['auth']->forgetGuards();
+
+        $this->call('PUT', "/api/v1/fiscal-issuers/$id/csd", ['password' => '12345678a'], [],
+            ['certificate' => $file('EKU9003173C9.cer'), 'privateKey' => $file('EKU9003173C9.key')], [
+                'HTTP_AUTHORIZATION' => 'Bearer '.$this->staff['admin']['access'], 'HTTP_IF_MATCH' => '"1"', 'HTTP_ACCEPT' => 'application/json',
+            ])->assertOk()->assertJsonPath('data.csd.serial', '30001000000500003416');
     }
 
     public function test_un_csd_vencido_se_rechaza(): void
