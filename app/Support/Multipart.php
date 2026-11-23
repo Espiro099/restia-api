@@ -3,12 +3,13 @@
 namespace App\Support;
 
 use Illuminate\Http\Request;
-use Illuminate\Http\UploadedFile;
 use Illuminate\Validation\ValidationException;
+use Symfony\Component\HttpFoundation\File\UploadedFile;
 
 /**
- * Cuerpo multipart/form-data en memoria. PHP solo lo interpreta en POST; para PUT (como la carga del
- * CSD) se lee el cuerpo crudo. Los archivos nunca se escriben en disco desde aquí ni se registran.
+ * Cuerpo multipart/form-data en memoria. PHP-FPM y `artisan serve` solo lo interpretan en POST; para PUT (como
+ * la carga del CSD) se lee el cuerpo crudo. FrankenPHP sí lo interpreta en PUT y los archivos ya vienen en
+ * `$request->files`. Los archivos nunca se escriben en disco desde aquí ni se registran.
  */
 final class Multipart
 {
@@ -20,7 +21,7 @@ final class Multipart
     public static function read(Request $request, array $fileFields, array $textFields, int $maxFileBytes, int $maxTextLength): array
     {
         [$texts, $files] = $request->files->count() || $request->isMethod('POST')
-            ? [$request->request->all(), array_map(fn ($f) => $f instanceof UploadedFile ? (string) file_get_contents($f->getRealPath()) : null, $request->files->all())]
+            ? [$request->request->all(), array_map(self::content(...), $request->files->all())]
             : self::parse($request);
 
         $errors = [];
@@ -53,6 +54,15 @@ final class Multipart
         }
 
         return $out;
+    }
+
+    /**
+     * `$request->files` guarda el UploadedFile de Symfony (el de Laravel sale de `$request->file()`). Con
+     * FrankenPHP, que sí interpreta multipart en PUT, el CSD llega por aquí.
+     */
+    private static function content(mixed $file): ?string
+    {
+        return $file instanceof UploadedFile && $file->isValid() ? (string) file_get_contents($file->getPathname()) : null;
     }
 
     /** @return array{0: array<string, string>, 1: array<string, string>} campos de texto y de archivo */
