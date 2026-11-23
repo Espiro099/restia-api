@@ -23,10 +23,12 @@ RUN composer install --no-dev --no-interaction --no-progress --prefer-dist --no-
 
 COPY . .
 RUN composer dump-autoload --no-dev --optimize \
-    && mkdir -p storage/framework/cache storage/framework/sessions storage/framework/views storage/logs bootstrap/cache
+    && mkdir -p storage/framework/cache storage/framework/sessions storage/framework/views storage/logs bootstrap/cache \
+    && sed -i 's/\r$//' docker/start.sh && chmod +x docker/start.sh
 
 # Sin host: Caddy escucha HTTP en 8080 y no intenta pedir certificados.
 ENV SERVER_NAME=:8080
 EXPOSE 8080
 
-CMD ["frankenphp", "run", "--config", "/etc/caddy/Caddyfile"]
+# docker/start.sh arranca FrankenPHP y, con RESTIA_RUN_SCHEDULER=true, también el programador de tareas.
+CMD ["/app/docker/start.sh"]

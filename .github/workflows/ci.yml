@@ -99,3 +99,4 @@ jobs:
         run: |
           docker logs api 2>&1 | tail -80 || true
           docker logs tareas 2>&1 | tail -80 || true
+          docker logs juntos 2>&1 | tail -80 || true

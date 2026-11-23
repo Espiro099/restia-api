@@ -1,7 +1,8 @@
 # Ambiente de PRUEBAS de Restia en Render (docs/Despliegue_Staging.md). No es producción:
 # APP_ENV=staging, PAC simulado y correos solo al log.
-# Plan gratuito: el servicio se duerme sin uso y no hay proceso de tareas (los workers son de pago).
-# Para activarlo, cambia `plan` a starter y agrega el worker que está comentado abajo.
+# Plan gratuito: el servicio se duerme sin uso. No hay worker (son de pago): el programador de tareas corre en el
+# mismo contenedor (RESTIA_RUN_SCHEDULER=true, docker/start.sh) mientras el servicio está despierto. Con un plan de
+# pago, cambia `plan` a starter, quita el comentario del worker y pon RESTIA_RUN_SCHEDULER en false.
 # Los valores con `sync: false` son secretos: Render los pide al crear el Blueprint y nunca van en el repo.
 services:
   - type: web
@@ -83,8 +84,15 @@ envVarGroups:
         value: "*"
       - key: RESTIA_PAC
         value: simulated
-      # Se llenan cuando exista el panel web publicado.
+      # El panel web publicado (restia-web, render.yaml) reenvía /api y /sanctum a esta API: mismo origen.
       - key: RESTIA_CORS_ORIGINS
-        value: ""
+        value: https://restia-web-staging.onrender.com
       - key: SANCTUM_STATEFUL_DOMAINS
-        value: ""
+        value: restia-web-staging.onrender.com
+      # Enlaces de contraseña y QR de las mesas llevan al panel (que reenvía /contrasena a esta API).
+      - key: RESTIA_WEB_URL
+        value: https://restia-web-staging.onrender.com
+      - key: RESTIA_PUBLIC_URL
+        value: https://restia-web-staging.onrender.com
+      - key: RESTIA_RUN_SCHEDULER
+        value: "true"
