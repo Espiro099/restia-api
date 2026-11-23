@@ -162,6 +162,12 @@ Mientras no exista el panel Web para dar de alta el catálogo, `restia:demo` car
 RESTIA_DEMO_PASSWORD='una-clave-de-prueba' php artisan restia:demo --branch=CENTRO --staff
 ```
 
+`restia:menu-la-mesa` agrega la carta base de La Mesa: 25 platillos (entradas, sopas, tacos, platos fuertes y postres) que van a Cocina y 25 bebidas (aguas, café, cervezas, cocteles y vinos) que van a Barra, con descripción, precio, claves fiscales de ejemplo y modificadores (término, salsa, leche, hielo). Se puede correr en cualquier sucursal y las veces que haga falta. Solo agrega por código (`LM-…`) lo que falte, y nunca cambia un producto, estación o modificador que ya exista. Las fotos se suben después desde el panel.
+
+```bash
+php artisan restia:menu-la-mesa --branch=CENTRO
+```
+
 ## Pagos y reembolsos
 
 Decisiones_Payments. El empleado registra el resultado de la terminal (P-1); nunca se guarda número de tarjeta ni CVV, solo marca, últimos 4 y autorización (P-10).
