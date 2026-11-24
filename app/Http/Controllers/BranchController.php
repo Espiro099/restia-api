@@ -44,6 +44,9 @@ class BranchController extends Controller
             'reservationNoShowToleranceMinutes' => ['integer', 'min:0', 'max:240'],
             'reservationAiEnabled' => ['boolean'],
             'reservationAiMaxPartySize' => ['integer', 'min:1', 'max:200'],
+            'location' => ['nullable', 'array:lat,lng'],
+            'location.lat' => ['required_with:location', 'numeric', 'between:-90,90'],
+            'location.lng' => ['required_with:location', 'numeric', 'between:-180,180'],
         ];
     }
 

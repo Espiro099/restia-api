@@ -28,7 +28,7 @@ services:
         sync: false
       - key: MAIL_FROM_ADDRESS
         sync: false
-      # Asistente del menú QR (QR-14): llave de la API de Claude. Sin ella, la página no muestra el asistente.
+      # Asistentes del menú QR (QR-14) y del sitio de La Mesa (SITE-3): llave de la API de Claude. Sin ella no se ofrecen.
       - key: ANTHROPIC_API_KEY
         sync: false
 

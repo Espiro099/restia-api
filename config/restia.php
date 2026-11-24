@@ -95,7 +95,17 @@ return [
         ],
     ],
 
-    // Asistente del menú QR (QR-14) con la API de Claude. Sin llave, la página no lo muestra.
+    // Sitio público de La Mesa (Decisiones_Public_Site). Límites por minuto y por IP.
+    'site' => [
+        'limits' => [
+            'reads' => 60,
+            'requests' => 3,
+            'lookups' => 10,
+            'assistant' => 8,
+        ],
+    ],
+
+    // Asistentes del menú QR (QR-14) y del sitio (SITE-3) con la API de Claude. Sin llave no se ofrecen.
     'assistant' => [
         'key' => env('ANTHROPIC_API_KEY'),
         'model' => env('RESTIA_ASSISTANT_MODEL', 'claude-haiku-5-5'),

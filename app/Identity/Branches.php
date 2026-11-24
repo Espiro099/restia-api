@@ -29,6 +29,8 @@ final class Branches
         'name' => 'name', 'timezone' => 'timezone', 'businessDayCutoff' => 'business_day_cutoff', 'phone' => 'phone', 'address' => 'address',
         'reservationHours' => 'reservation_hours', 'reservationNoShowToleranceMinutes' => 'reservation_no_show_tolerance_minutes',
         'reservationAiEnabled' => 'reservation_ai_enabled', 'reservationAiMaxPartySize' => 'reservation_ai_max_party_size',
+        // B-8: punto en el mapa del sitio público de La Mesa.
+        'location' => 'location',
     ];
 
     public static function present(Branch $b): array
@@ -46,6 +48,7 @@ final class Branches
             'businessDayCutoff' => $b->business_day_cutoff ?: config('restia.floor.business_day_cutoff'),
             'phone' => $b->phone,
             'address' => $address,
+            'location' => self::location($b),
             'createdAt' => $time($b->created_at),
             'updatedAt' => $time($b->updated_at),
             'version' => (int) $b->version,
@@ -83,8 +86,20 @@ final class Branches
         }
     }
 
+    /** {lat, lng} con 6 decimales (unos 10 cm), o null si la sucursal no tiene punto en el mapa. */
+    public static function location(Branch $b): ?array
+    {
+        $l = $b->location ? (array) json_decode(json_encode($b->location), true) : null;
+
+        return $l && isset($l['lat'], $l['lng']) ? ['lat' => round((float) $l['lat'], 6), 'lng' => round((float) $l['lng'], 6)] : null;
+    }
+
     public static function update(User $actor, Branch $branch, int $version, array $in): Branch
     {
+        if (array_key_exists('location', $in) && $in['location'] !== null) {
+            $in['location'] = ['lat' => round((float) $in['location']['lat'], 6), 'lng' => round((float) $in['location']['lng'], 6)];
+        }
+
         return self::change($actor, $branch, $version, function (Branch $fresh) use ($in) {
             $changes = [];
             $before = [];

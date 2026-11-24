@@ -21,6 +21,7 @@ use App\Http\Controllers\PrintingController;
 use App\Http\Controllers\PrintJobController;
 use App\Http\Controllers\ProductImageController;
 use App\Http\Controllers\PublicQrController;
+use App\Http\Controllers\PublicSiteController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\ReservationController;
 use App\Http\Controllers\ServiceIdentityController;
@@ -43,6 +44,15 @@ Route::controller(PublicQrController::class)->prefix('public')->middleware('qr')
     Route::get('context', 'context');
     Route::get('menu', 'menu');
     Route::post('presence', 'presence');
+    Route::post('assistant', 'assistant');
+});
+
+// Sitio público de La Mesa (SITE-1 a SITE-4): sucursales, solicitudes de reserva y asistente. Sin cuenta.
+Route::controller(PublicSiteController::class)->prefix('public/site')->group(function () {
+    Route::get('branches', 'branches');
+    Route::get('branches/{code}/availability', 'availability');
+    Route::post('reservation-requests', 'createRequest');
+    Route::post('reservation-requests/lookup', 'lookupRequest');
     Route::post('assistant', 'assistant');
 });
 

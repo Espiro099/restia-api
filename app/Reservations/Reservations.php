@@ -488,7 +488,8 @@ final class Reservations
         return (int) ($branch->reservation_no_show_tolerance_minutes ?? 15);
     }
 
-    private static function code(ObjectId $branchId): string
+    /** Código de confirmación único en la sucursal; también es el folio de las solicitudes del sitio. */
+    public static function code(ObjectId $branchId): string
     {
         do {
             $code = '';
