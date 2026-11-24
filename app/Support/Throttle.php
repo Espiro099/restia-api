@@ -12,14 +12,14 @@ final class Throttle
     /**
      * Cuenta un intento. $onLimit se ejecuta una sola vez, en el intento que alcanza el límite.
      */
-    public static function hit(string $key, int $max, ?Closure $onLimit = null): void
+    public static function hit(string $key, int $max, ?Closure $onLimit = null, int $windowSeconds = 60): void
     {
         $key = 'restia:'.hash('sha256', $key);
         if (RateLimiter::tooManyAttempts($key, $max)) {
             $seconds = max(1, RateLimiter::availableIn($key));
             throw new ThrottleRequestsException(headers: ['Retry-After' => (string) $seconds]);
         }
-        if (RateLimiter::hit($key, 60) === $max && $onLimit) {
+        if (RateLimiter::hit($key, $windowSeconds) === $max && $onLimit) {
             $onLimit();
         }
     }

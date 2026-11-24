@@ -32,7 +32,7 @@ La página pública de La Mesa (`/` en el sitio web) muestra las sucursales en u
 - El teléfono se escribe a 10 dígitos y se guarda en E.164 (`+52…`), igual que los capturados por el personal, para que la búsqueda y el límite por teléfono funcionen con ambos.
 - La auditoría queda con actor `SYSTEM` y `source: WEB`; el outbox publica `reservation.created`, así que la campana del personal la avisa como cualquier otra.
 - La respuesta trae folio, estado, sucursal, fecha, hora, personas y nombre.
-- Con un remitente verificado en Resend y RESTIA_RESERVATION_EMAIL_ENABLED=true, la página ofrece un correo opcional. La tarea de reservas procesa reservation.confirmed y envía el folio y los datos de la visita. El correo se borra junto con los demás datos personales de la solicitud.
+- Con un remitente verificado en Resend y RESTIA_RESERVATION_EMAIL_ENABLED=true, la página ofrece un correo opcional. La tarea de reservas atiende los eventos de creación y confirmación. Envía el folio al recibir la solicitud y otro correo cuando el personal confirma. Se admiten hasta tres intentos de solicitud con el mismo correo por hora. El correo se borra junto con los demás datos personales de la solicitud.
 
 ## Asistente (SITE-3)
 

@@ -17,6 +17,8 @@ use App\Models\Ingredient;
 use App\Models\InventoryCount;
 use App\Models\InventoryMovement;
 use App\Models\InventoryReceipt;
+use App\Models\OrderItem;
+use App\Models\OrderItemUnit;
 use App\Models\Product;
 use App\Models\Recipe;
 use App\Models\User;
@@ -366,6 +368,17 @@ class InventoryController extends Controller
             ->get()->mapWithKeys(fn ($d) => [(string) $d->getKey() => $d->uuid]);
         $ingredients = $uuids(Ingredient::class, 'ingredient_id');
         $users = $uuids(User::class, 'created_by');
+        $sourceIds = $rows->where('source_type', 'order_unit')->pluck('source_id')->filter()
+            ->map(fn ($id) => new ObjectId((string) $id))->unique()->values()->all();
+        $units = $sourceIds
+            ? OrderItemUnit::query()->forBranch($branch)->whereIn('_id', $sourceIds)->get()
+            : collect();
+        $itemIds = $units->pluck('order_item_id')->filter()->unique()->values()->all();
+        $itemNames = $itemIds
+            ? OrderItem::query()->forBranch($branch)->whereIn('_id', $itemIds)->get()
+                ->mapWithKeys(fn (OrderItem $item) => [(string) $item->getKey() => $item->name_snapshot])
+            : collect();
+        $productNames = $units->mapWithKeys(fn (OrderItemUnit $unit) => [(string) $unit->getKey() => $itemNames->get((string) $unit->order_item_id)]);
 
         return $rows->map(fn (InventoryMovement $m) => [
             'id' => $m->uuid,
@@ -375,6 +388,7 @@ class InventoryController extends Controller
             'quantity' => Quantity::out($m->quantity),
             'sourceType' => $m->source_type,
             'sourceId' => $m->source_uuid,
+            'sourceProductName' => $m->source_type === 'order_unit' ? $productNames->get((string) $m->source_id) : null,
             'recipeVersion' => $m->recipe_version === null ? null : (int) $m->recipe_version,
             'reason' => $m->reason,
             'override' => (bool) $m->override,
