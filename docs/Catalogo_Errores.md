@@ -11,9 +11,9 @@ Reúne los 102 códigos que el contrato puede devolver, según el formato `Error
 |---|---|---|---|---|---|
 | `APPROVAL_DENIED` | 403 | Nuevo | 1 | No se pudo autorizar la acción. | Mostrar el motivo; corregir la situación antes de reintentar |
 | `APPROVAL_INVALID` | 409 | Nuevo | 4 | La aprobación venció, ya se usó o no corresponde a esta operación. | Mostrar el motivo; corregir la situación antes de reintentar |
-| `AUTHENTICATION_INVALID` | 401 | Documento maestro | 2 | Las credenciales no son válidas. | Renovar la sesión o iniciar sesión |
+| `AUTHENTICATION_INVALID` | 401 | Documento maestro | 4 | Las credenciales no son válidas. | Renovar la sesión o iniciar sesión |
 | `AUTHENTICATION_REQUIRED` | 401 | Documento maestro | 206 | Se requiere autenticación. | Renovar la sesión o iniciar sesión |
-| `BRANCH_ACCESS_DENIED` | 403 | Documento maestro | 201 | No tienes acceso a esta sucursal. | No reintentar; falta permiso o acceso |
+| `BRANCH_ACCESS_DENIED` | 403 | Documento maestro | 202 | No tienes acceso a esta sucursal. | No reintentar; falta permiso o acceso |
 | `BRANCH_CODE_TAKEN` | 409 | Nuevo | 1 | Ya existe una sucursal con ese código. | Mostrar el motivo; corregir la situación antes de reintentar |
 | `BRANCH_HAS_ACTIVE_OPERATIONS` | 409 | Nuevo | 2 | La sucursal tiene operaciones activas. | Mostrar el motivo; corregir la situación antes de reintentar |
 | `BRANCH_INACTIVE` | 409 | Nuevo | 14 | La sucursal está inactiva. | Volver a leer el estado; no reintentar igual |
@@ -37,12 +37,12 @@ Reúne los 102 códigos que el contrato puede devolver, según el formato `Error
 | `COMPLEMENT_INVALID_STATE` | 409 | Nuevo | 2 | El complemento no permite esta operación en su estado actual. | Volver a leer el estado; no reintentar igual |
 | `CREDIT_NOTE_EXCEEDS_AVAILABLE` | 409 | Nuevo | 1 | El monto supera lo disponible en la factura. | Mostrar el motivo; corregir la situación antes de reintentar |
 | `CSD_INVALID` | 409 | Nuevo | 1 | El certificado o la llave no son válidos. | Mostrar el motivo; corregir la situación antes de reintentar |
-| `CSRF_TOKEN_MISMATCH` | 403 | Nuevo | 202 | La página expiró. Recárgala e inténtalo de nuevo. | Mostrar el motivo; corregir la situación antes de reintentar |
+| `CSRF_TOKEN_MISMATCH` | 403 | Nuevo | 203 | La página expiró. Recárgala e inténtalo de nuevo. | Mostrar el motivo; corregir la situación antes de reintentar |
 | `CUSTOMER_ANONYMIZED` | 409 | Nuevo | 2 | El cliente fue anonimizado. | Mostrar el motivo; corregir la situación antes de reintentar |
 | `DEVICE_ALREADY_ENROLLED` | 409 | Nuevo | 1 | Este dispositivo ya está registrado. | Mostrar el motivo; corregir la situación antes de reintentar |
-| `DEVICE_BLOCKED` | 403 | Nuevo | 2 | Este dispositivo ya no está autorizado. | Mostrar el motivo; corregir la situación antes de reintentar |
+| `DEVICE_BLOCKED` | 403 | Nuevo | 3 | Este dispositivo ya no está autorizado. | Mostrar el motivo; corregir la situación antes de reintentar |
 | `DEVICE_BRANCH_MISMATCH` | 403 | Nuevo | 199 | Este dispositivo pertenece a otra sucursal. | Mostrar el motivo; corregir la situación antes de reintentar |
-| `DEVICE_NOT_ENROLLED` | 401 | Nuevo | 2 | El dispositivo no está registrado. | Mostrar el motivo; corregir la situación antes de reintentar |
+| `DEVICE_NOT_ENROLLED` | 401 | Nuevo | 4 | El dispositivo no está registrado. | Mostrar el motivo; corregir la situación antes de reintentar |
 | `ENROLLMENT_CODE_INVALID` | 401 | Nuevo | 1 | El código de alta no es válido. | Mostrar el motivo; corregir la situación antes de reintentar |
 | `FISCAL_ISSUER_NOT_CONFIGURED` | 409 | Nuevo | 4 | La sucursal no tiene un emisor activo con CSD vigente. | Mostrar el motivo; corregir la situación antes de reintentar |
 | `FISCAL_ISSUER_RFC_TAKEN` | 409 | Nuevo | 1 | Ya existe un emisor con ese RFC. | Mostrar el motivo; corregir la situación antes de reintentar |
@@ -51,7 +51,7 @@ Reúne los 102 códigos que el contrato puede devolver, según el formato `Error
 | `FORBIDDEN` | 403 | Documento maestro | 200 | No tienes permiso para esta operación. | No reintentar; falta permiso o acceso |
 | `IDEMPOTENCY_KEY_REUSED` | 409 | Documento maestro | 35 | La clave ya se usó con otros datos. | Corregir el cliente; no reintentar con esa clave |
 | `INGREDIENT_IN_USE` | 409 | Nuevo | 1 | Una receta vigente usa este ingrediente. | Mostrar el motivo; corregir la situación antes de reintentar |
-| `INTERNAL_ERROR` | 500 | Nuevo | 223 | Ocurrió un error inesperado. | Reintentar con la misma Idempotency-Key; reportar con requestId |
+| `INTERNAL_ERROR` | 500 | Nuevo | 226 | Ocurrió un error inesperado. | Reintentar con la misma Idempotency-Key; reportar con requestId |
 | `INVENTORY_BLOCKED_FOOD_SAFETY` | 409 | Nuevo | 1 | El ingrediente está bloqueado por seguridad alimentaria. | Mostrar el motivo; corregir la situación antes de reintentar |
 | `INVENTORY_COUNT_ALREADY_OPEN` | 409 | Nuevo | 1 | Ya existe un conteo abierto en la sucursal. | Mostrar el motivo; corregir la situación antes de reintentar |
 | `INVENTORY_COUNT_INVALID_STATE` | 409 | Nuevo | 3 | El conteo no permite esta operación en su estado actual. | Volver a leer el estado; no reintentar igual |
@@ -91,8 +91,8 @@ Reúne los 102 códigos que el contrato puede devolver, según el formato `Error
 | `RESERVATION_NOT_AVAILABLE` | 409 | Documento maestro | 3 | No hay disponibilidad para ese horario. | Mostrar el motivo; corregir la situación antes de reintentar |
 | `RESERVATION_PRIORITY_CONFLICT` | 409 | Nuevo | 1 | Otra reserva tiene prioridad para esas mesas. | Mostrar el motivo; corregir la situación antes de reintentar |
 | `RESERVATION_REQUIRES_STAFF` | 409 | Nuevo | 1 | Esta reserva debe atenderla el personal. | Mostrar el motivo; corregir la situación antes de reintentar |
-| `RESOURCE_NOT_FOUND` | 404 | Documento maestro | 204 | El recurso no existe. | No reintentar |
-| `SERVICE_BUSY` | 503 | Nuevo | 121 | El servicio está ocupado. Inténtalo de nuevo. | Reintentar con la misma Idempotency-Key |
+| `RESOURCE_NOT_FOUND` | 404 | Documento maestro | 206 | El recurso no existe. | No reintentar |
+| `SERVICE_BUSY` | 503 | Nuevo | 123 | El servicio está ocupado. Inténtalo de nuevo. | Reintentar con la misma Idempotency-Key |
 | `SERVICE_IDENTITY_NAME_TAKEN` | 409 | Nuevo | 1 | Ya existe una identidad con ese nombre. | Mostrar el motivo; corregir la situación antes de reintentar |
 | `SERVICE_IDENTITY_REVOKED` | 409 | Nuevo | 4 | La identidad de servicio está revocada. | Mostrar el motivo; corregir la situación antes de reintentar |
 | `SESSION_HAS_ACTIVITY` | 409 | Nuevo | 1 | La sesión ya tiene actividad y no se puede cancelar. | Mostrar el motivo; corregir la situación antes de reintentar |
@@ -106,9 +106,9 @@ Reúne los 102 códigos que el contrato puede devolver, según el formato `Error
 | `TABLE_NOT_AVAILABLE` | 409 | Documento maestro | 3 | La mesa no está disponible. | Mostrar el motivo; corregir la situación antes de reintentar |
 | `TABLE_NUMBER_TAKEN` | 409 | Nuevo | 2 | Ya existe una mesa con ese número. | Mostrar el motivo; corregir la situación antes de reintentar |
 | `TABLE_RESERVED_SOON` | 409 | Nuevo | 1 | La mesa tiene una reserva próxima. | Mostrar el motivo; corregir la situación antes de reintentar |
-| `TOO_MANY_ATTEMPTS` | 429 | Nuevo | 28 | Demasiados intentos. Espera antes de reintentar. | Esperar lo que indica Retry-After |
+| `TOO_MANY_ATTEMPTS` | 429 | Nuevo | 30 | Demasiados intentos. Espera antes de reintentar. | Esperar lo que indica Retry-After |
 | `USER_INACTIVE` | 409 | Nuevo | 2 | El usuario está inactivo. | Volver a leer el estado; no reintentar igual |
-| `VALIDATION_FAILED` | 422 | Documento maestro | 160 | Los datos enviados no son válidos. | Corregir los campos indicados en details |
+| `VALIDATION_FAILED` | 422 | Documento maestro | 162 | Los datos enviados no son válidos. | Corregir los campos indicados en details |
 | `VERSION_CONFLICT` | 409 | Documento maestro | 76 | El recurso fue modificado por otra operación. | Volver a leer el recurso y decidir de nuevo |
 | `VERSION_REQUIRED` | 400 | Nuevo | 75 | Esta operación requiere el header If-Match. | Corregir el cliente: falta If-Match |
 

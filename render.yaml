@@ -31,6 +31,9 @@ services:
       # Asistentes del menú QR (QR-14) y del sitio de La Mesa (SITE-3): llave de la API de Claude. Sin ella no se ofrecen.
       - key: ANTHROPIC_API_KEY
         sync: false
+      # Inicio de sesión con Google (Decisiones_Google_Login): ID de cliente OAuth Web. Vacío, está apagado.
+      - key: GOOGLE_CLIENT_ID
+        sync: false
 
   # Impresión, avisos, inventario, reportes, reservaciones y facturación avanzan aquí (routes/console.php).
   # - type: worker

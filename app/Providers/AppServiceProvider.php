@@ -5,6 +5,8 @@ namespace App\Providers;
 use App\Fiscal\Pac\Pac;
 use App\Fiscal\Pac\SimulatedPac;
 use App\Fiscal\Pac\SwSapienPac;
+use App\Identity\GoogleIdTokenVerifier;
+use App\Identity\GoogleTokens;
 use App\Mail\ResendTransport;
 use App\Models\PersonalAccessToken;
 use App\PublicQr\AssistantModel;
@@ -31,6 +33,8 @@ class AppServiceProvider extends ServiceProvider
         });
         // QR-14 y SITE-3: los asistentes del menú y del sitio con Claude; sin ANTHROPIC_API_KEY no se ofrecen.
         $this->app->singleton(AssistantModel::class, fn () => new ClaudeAssistantModel(config('restia.assistant.key'), config('restia.assistant.model')));
+        // GOOGLE-2: el ID token se verifica con las llaves públicas de Google; sin GOOGLE_CLIENT_ID está apagado.
+        $this->app->singleton(GoogleTokens::class, fn () => new GoogleIdTokenVerifier(config('restia.auth.google_client_id')));
         $this->app->singleton(SiteAssistantModel::class, fn () => new SiteClaudeAssistantModel(config('restia.assistant.key'), config('restia.assistant.model')));
     }
 

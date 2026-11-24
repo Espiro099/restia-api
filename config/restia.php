@@ -4,6 +4,8 @@
 return [
     'auth' => [
         'access_token_seconds' => 15 * 60,
+        // GOOGLE-1: ID de cliente OAuth Web de Google Cloud. Vacío, el inicio de sesión con Google está apagado.
+        'google_client_id' => env('GOOGLE_CLIENT_ID'),
         // Sección 30: rechazar contraseñas filtradas consultando Have I Been Pwned por k-anonimato.
         // Se apaga en pruebas para no depender de la red.
         'check_breached_passwords' => (bool) env('RESTIA_CHECK_BREACHED_PASSWORDS', true),

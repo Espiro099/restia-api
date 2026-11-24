@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Identity\GoogleSignIn;
 use App\Identity\MobileAuth;
 use App\Models\User;
 use App\Support\Api;
@@ -47,6 +48,20 @@ class MobileAuthController extends Controller
         });
 
         return Api::data(MobileAuth::login($email, $in['password'], $in['deviceUuid'], $in['deviceCredential'], $ip), 201, noStore: true);
+    }
+
+    /** POST /auth/mobile/google (loginMobileGoogle): como /auth/mobile/login, con el ID token de Credential Manager. */
+    public function google(Request $request, GoogleSignIn $google): JsonResponse
+    {
+        $in = Api::body($request, [
+            'idToken' => ['required', 'string', 'min:16', 'max:4096'],
+            'deviceUuid' => ['required', 'string', 'uuid'],
+            'deviceCredential' => ['required', 'string', 'min:32', 'max:256'],
+        ]);
+        $ip = (string) $request->ip();
+        Throttle::hit('login-ip|'.$ip, config('restia.auth.limits.login_per_ip'));
+
+        return Api::data(MobileAuth::loginWithGoogle($google, $in['idToken'], $in['deviceUuid'], $in['deviceCredential'], $ip), 201, noStore: true);
     }
 
     public function refresh(Request $request): JsonResponse

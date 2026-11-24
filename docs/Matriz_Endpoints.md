@@ -3,40 +3,43 @@
 **Estado:** generado desde `openapi/restia-api.yaml`
 **Fecha:** 2026-11-02
 
-Cubre las 223 operaciones del contrato. Se regenera con `tools/gen_matrices.py`; no se edita a mano.
+Cubre las 226 operaciones del contrato. Se regenera con `tools/gen_matrices.py`; no se edita a mano.
 
 ## 1. Criterios de la sección 36
 
 | # | Criterio | Operaciones que lo responden |
 |---|---|---|
-| 1 | ¿Quién puede invocarlo? | 223 de 223 |
-| 2 | ¿En qué sucursal? | 223 de 223 |
-| 3 | ¿Qué permiso necesita? | 223 de 223 |
-| 4 | ¿Qué estado requiere? | 223 de 223 |
-| 5 | ¿Qué payload recibe? | 202 de 223 (las otras 21 son escrituras sin cuerpo, porque la ruta basta) |
-| 6 | ¿Qué devuelve? | 223 de 223 |
-| 7 | ¿Qué errores puede producir? | 223 de 223 (`x-restia.conflictCodes` da los 409 exactos) |
-| 8 | ¿Es idempotente? | 223 de 223 |
-| 9 | ¿Requiere versión? | 222 de 223 (Orders por lotes lleva la versión en el cuerpo) |
-| 10 | ¿Qué ocurre con concurrencia? | 223 de 223 |
-| 11 | ¿Genera auditoría? | 223 de 223 |
-| 12 | ¿Genera outbox? | 223 de 223 |
-| 13 | ¿Es síncrono o asíncrono? | 223 de 223 |
-| 14 | ¿Qué datos son sensibles? | 223 de 223 |
-| 15 | ¿Qué cliente lo consume? | 223 de 223 |
+| 1 | ¿Quién puede invocarlo? | 226 de 226 |
+| 2 | ¿En qué sucursal? | 226 de 226 |
+| 3 | ¿Qué permiso necesita? | 226 de 226 |
+| 4 | ¿Qué estado requiere? | 226 de 226 |
+| 5 | ¿Qué payload recibe? | 205 de 226 (las otras 21 son escrituras sin cuerpo, porque la ruta basta) |
+| 6 | ¿Qué devuelve? | 226 de 226 |
+| 7 | ¿Qué errores puede producir? | 226 de 226 (`x-restia.conflictCodes` da los 409 exactos) |
+| 8 | ¿Es idempotente? | 226 de 226 |
+| 9 | ¿Requiere versión? | 225 de 226 (Orders por lotes lleva la versión en el cuerpo) |
+| 10 | ¿Qué ocurre con concurrencia? | 226 de 226 |
+| 11 | ¿Genera auditoría? | 226 de 226 |
+| 12 | ¿Genera outbox? | 226 de 226 |
+| 13 | ¿Es síncrono o asíncrono? | 226 de 226 |
+| 14 | ¿Qué datos son sensibles? | 226 de 226 |
+| 15 | ¿Qué cliente lo consume? | 226 de 226 |
 
 ## 2. Operaciones
 
 Otros actores: identidades de servicio (`reservation-ai`, `printing-agent`) o visitantes públicos.
 
-### Authentication (20)
+### Authentication (23)
 
 | Operación | ADMIN | MANAGER | WAITER | KITCHEN | Otros | Permiso | Estado requerido | If-Match | Idempotencia | Auditoría | Outbox | Modo | Clientes | Códigos 409 |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | `GET /sanctum/csrf-cookie` | – | – | – | – | Visitante Web | Ninguno | Ninguno | No | Sí, operación de lectura | No | No | Síncrono | Web | – |
 | `POST /auth/login` | – | – | – | – | Empleado | Usuario activo | Usuario activo | No | No | Login correcto y bloqueo por intentos | No | Síncrono | Web | – |
+| `GET /auth/google` | – | – | – | – | Cualquiera | Ninguno | Ninguno | No | Sí, operación de lectura | No | No | Síncrono | Web, Android | – |
+| `POST /auth/google` | – | – | – | – | Empleado | Usuario activo con el correo verificado por Google | Usuario activo | No | No | Login correcto y la primera vez que se liga la cuenta de Google | No | Síncrono | Web | – |
 | `POST /auth/mobile/enroll` | – | – | – | – | Dispositivo con código de alta | Código vigente de un solo uso | Código sin usar y sin vencer | No | No; el código solo admite un uso | Alta de dispositivo | device.enrolled | Síncrono, en transacción | Android | DEVICE_ALREADY_ENROLLED |
 | `POST /auth/mobile/login` | – | – | – | – | Empleado | Membresía activa en la sucursal del dispositivo | Usuario activo y dispositivo ACTIVE | No | No | Login correcto, sesiones revocadas y bloqueo por intentos | No | Síncrono, en transacción | Android | – |
+| `POST /auth/mobile/google` | – | – | – | – | Empleado | Membresía activa en la sucursal del dispositivo | Usuario activo y dispositivo ACTIVE | No | No | Login correcto, sesiones revocadas y la primera vez que se liga la cuenta de Google | No | Síncrono, en transacción | Android | – |
 | `POST /auth/mobile/refresh` | – | – | – | – | Sesión Android | Refresh token vigente | Sesión ACTIVE y dispositivo ACTIVE | No | No usa Idempotency-Key; la gracia de 60 s cubre los reintentos | Solo cuando se detecta reúso | No | Síncrono, en transacción | Android | – |
 | `POST /auth/logout` | – | – | – | – | Empleado autenticado | Ninguno | Sesión ACTIVE | No | Sí, en efecto | Logout | No | Síncrono, en transacción | Android, Web | – |
 | `GET /auth/me` | – | – | – | – | Empleado autenticado | Ninguno | Sesión ACTIVE | No | Sí, operación de lectura | No | No | Síncrono | Android, Web | – |
