@@ -12,11 +12,13 @@ use App\Models\Notification;
 use App\Models\Order;
 use App\Models\OrderItemUnit;
 use App\Models\Payment;
+use App\Models\Reservation;
 use App\Models\RestaurantTable;
 use App\Models\TableAssignment;
 use App\Models\TableSession;
 use App\Support\Floor;
 use App\Support\Mongo;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use MongoDB\BSON\ObjectId;
 use MongoDB\BSON\UTCDateTime;
@@ -40,7 +42,7 @@ final class Notifications
 {
     public const CONSUMER = 'notifications';
 
-    private const EVENTS = ['order_unit.ready', 'check.requested', 'payment.confirmed', 'payment.failed', 'payment.unknown', 'ingredient.low_stock'];
+    private const EVENTS = ['order_unit.ready', 'check.requested', 'payment.confirmed', 'payment.failed', 'payment.unknown', 'ingredient.low_stock', 'reservation.created'];
 
     /** Unidad base del insumo, como se lee en el aviso. */
     private const UNITS = ['G' => 'g', 'KG' => 'kg', 'ML' => 'ml', 'L' => 'l', 'PIECE' => 'pzas.'];
@@ -64,6 +66,7 @@ final class Notifications
                     $event['type'] === 'order_unit.ready' => self::orderReady($event),
                     $event['type'] === 'check.requested' => self::checkRequested($event),
                     $event['type'] === 'ingredient.low_stock' => self::lowStock($event),
+                    $event['type'] === 'reservation.created' => self::reservationRequested($event),
                     default => self::paymentResult($event),
                 };
                 DB::connection('mongodb')->table('outbox_events')->where('id', $event['id'])
@@ -85,6 +88,7 @@ final class Notifications
             'tableNumber' => $n->table_number,
             'sessionId' => $n->session_id ? TableSession::query()->find((string) $n->session_id)?->uuid : null,
             'checkId' => $n->check_id ? Check::query()->find((string) $n->check_id)?->uuid : null,
+            'reservationId' => $n->reservation_id ? Reservation::query()->find((string) $n->reservation_id)?->uuid : null,
             'count' => (int) ($n->count ?: 1),
             'readAt' => TableSessions::time($n->read_at),
             'createdAt' => TableSessions::time($n->created_at),
@@ -192,6 +196,34 @@ final class Notifications
                 continue;
             }
             self::create($branchId, $userId, Notification::LOW_STOCK, null, null, null, $fields + ['group_key' => $group]);
+        }
+    }
+
+    /**
+     * Solicitud del sitio (source WEB): avisa a gerentes y administradores, que son quienes la confirman. Las
+     * reservas que captura el personal no avisan: ya las está viendo quien las crea.
+     */
+    private static function reservationRequested(array $event): void
+    {
+        $r = Reservation::query()->find((string) $event['source_id']);
+        if (! $r || $r->source !== 'WEB' || $r->status !== Reservation::PENDING) {
+            return;
+        }
+        $branch = Branch::query()->find((string) $r->branch_id);
+        $tz = $branch?->timezone ?: 'America/Mexico_City';
+        $start = Carbon::instance($r->start_at)->setTimezone($tz);
+        $name = ((array) ($r->customer_snapshot ?? []))['name'] ?? 'Cliente';
+        $people = (int) $r->party_size;
+        $fields = [
+            'title' => 'Nueva solicitud de reserva',
+            'body' => "$name · $people ".($people === 1 ? 'persona' : 'personas').' · '.$start->locale('es')->isoFormat('ddd D MMM, HH:mm').". Folio {$r->confirmation_code}.",
+            'reservation_id' => new ObjectId($r->getKey()),
+        ];
+        $staff = Membership::query()->where('branch_id', new ObjectId((string) $r->branch_id))->where('status', Membership::ACTIVE)
+            ->whereIn('role', ['ADMIN', 'MANAGER'])->get()
+            ->filter(fn (Membership $m) => $m->can('reservations.confirm'))->map(fn ($m) => (string) $m->user_id)->unique();
+        foreach ($staff as $userId) {
+            self::create((string) $r->branch_id, $userId, Notification::RESERVATION_REQUESTED, null, null, null, $fields);
         }
     }
 

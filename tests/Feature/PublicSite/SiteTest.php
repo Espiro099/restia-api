@@ -4,6 +4,7 @@ namespace Tests\Feature\PublicSite;
 
 use App\Models\Branch;
 use App\Models\Reservation;
+use App\Notifications\Notifications;
 use App\PublicSite\Assistant;
 use App\PublicSite\AssistantModel;
 use App\PublicSite\AssistantReply;
@@ -110,6 +111,21 @@ class SiteTest extends FloorTestCase
         $lookup = ['branchCode' => 'CENTRO', 'folio' => strtolower($created['folio']), 'phone' => '3398765432'];
         $this->site('POST', 'reservation-requests/lookup', $lookup)->assertOk()->assertJsonPath('data.status', 'PENDING');
         $this->site('POST', 'reservation-requests/lookup', ['phone' => '3300000000'] + $lookup)->assertStatus(404);
+    }
+
+    public function test_la_solicitud_avisa_al_gerente_en_la_campana(): void
+    {
+        $folio = $this->request()->assertCreated()->json('data.folio');
+        Notifications::run();
+
+        $mine = $this->as('gerente', 'GET', 'notifications?perPage=10')->assertOk();
+        $this->assertSame(1, $mine->json('meta.unreadCount'));
+        $this->assertSame(['RESERVATION_REQUESTED', 'Nueva solicitud de reserva', null], [$mine->json('data.0.type'), $mine->json('data.0.title'), $mine->json('data.0.tableNumber')]);
+        $this->assertStringContainsString('Ana López · 4 personas', $mine->json('data.0.body'));
+        $this->assertStringContainsString("Folio $folio", $mine->json('data.0.body'));
+        $this->assertSame(Reservation::query()->where('confirmation_code', $folio)->first()->uuid, $mine->json('data.0.reservationId'));
+        // El mesero no la confirma desde la campana.
+        $this->assertSame(0, $this->as('mesero', 'GET', 'notifications?perPage=10')->json('meta.unreadCount'));
     }
 
     public function test_reglas_de_la_solicitud(): void

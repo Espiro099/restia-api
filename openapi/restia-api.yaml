@@ -16520,6 +16520,7 @@ components:
           - PAYMENT_FAILED
           - PAYMENT_UNKNOWN
           - LOW_STOCK
+          - RESERVATION_REQUESTED
         title:
           type: string
           example: Mesa 4 · orden lista
@@ -16529,7 +16530,7 @@ components:
         tableNumber:
           type: integer
           nullable: true
-          description: Null en avisos que no son de una mesa (LOW_STOCK).
+          description: Null en avisos que no son de una mesa (LOW_STOCK, RESERVATION_REQUESTED).
         sessionId:
           type: string
           format: uuid
@@ -16538,6 +16539,11 @@ components:
           type: string
           format: uuid
           nullable: true
+        reservationId:
+          type: string
+          format: uuid
+          nullable: true
+          description: En RESERVATION_REQUESTED, la solicitud del sitio que hay que confirmar.
         count:
           type: integer
           minimum: 1
