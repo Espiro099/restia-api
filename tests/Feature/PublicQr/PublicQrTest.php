@@ -38,7 +38,8 @@ class PublicQrTest extends FloorTestCase
 
         $context = $this->visitor('GET', 'context', $token)->assertOk()
             ->assertHeader('Referrer-Policy', 'no-referrer')->assertHeader('X-Robots-Tag', 'noindex, nofollow')->json('data');
-        $this->assertSame(['restaurantName' => $this->branch->name, 'tableNumber' => 1, 'currency' => 'MXN', 'timezone' => 'America/Mexico_City'], $context);
+        $this->assertSame(['restaurantName' => $this->branch->name, 'tableNumber' => 1, 'currency' => 'MXN', 'timezone' => 'America/Mexico_City',
+            'phone' => null, 'address' => null, 'mapsUrl' => null, 'assistant' => false], $context);
 
         $menu = $this->visitor('GET', 'menu', $token)->assertOk()->assertHeader('ETag');
         $products = $menu->json('data.products');
@@ -46,7 +47,7 @@ class PublicQrTest extends FloorTestCase
         foreach ($products as $p) {
             $this->assertSame(['id', 'name', 'description', 'category', 'displayOrder', 'recommended', 'price', 'availability', 'modifierIds', 'imageUrl'], array_keys($p));
         }
-        // QR-13: la recomendación del día llega marcada.
+        // QR-15: la recomendación del día llega marcada.
         $this->assertNotContains(true, array_column($products, 'recommended'));
         // Los agotados se ven, marcados (QR-7).
         $this->assertContains('SOLD_OUT', array_column($products, 'availability'));
@@ -161,5 +162,19 @@ class PublicQrTest extends FloorTestCase
         Branch::query()->where('_id', $this->branch->getKey())->update(['status' => Branch::INACTIVE]);
         $this->as('gerente', 'POST', "tables/{$table->uuid}/qr/rotate", ['reason' => 'Prueba'], ['If-Match' => '"'.$table->fresh()->version.'"'])
             ->assertStatus(409)->assertJsonPath('error.code', 'BRANCH_INACTIVE');
+    }
+
+    public function test_el_visitante_ve_la_direccion_y_como_llegar(): void
+    {
+        $this->branch->update([
+            'phone' => '33 1234 5678',
+            'address' => ['line1' => 'Av. Juárez 120', 'line2' => 'Centro', 'city' => 'Guadalajara', 'state' => 'Jalisco', 'postalCode' => '44100', 'country' => 'MX'],
+        ]);
+
+        $context = $this->visitor('GET', 'context', $this->token(1))->assertOk()->json('data');
+
+        $this->assertSame('33 1234 5678', $context['phone']);
+        $this->assertSame(['line1' => 'Av. Juárez 120', 'line2' => 'Centro', 'city' => 'Guadalajara', 'state' => 'Jalisco', 'postalCode' => '44100'], $context['address']);
+        $this->assertSame('https://www.google.com/maps/search/?api=1&query='.rawurlencode('Av. Juárez 120, Centro, 44100 Guadalajara, Jalisco'), $context['mapsUrl']);
     }
 }

@@ -1,6 +1,6 @@
 # Módulo Public QR: decisiones del contrato
 
-**Estado:** APROBADAS (QR-1 a QR-12)
+**Estado:** APROBADAS (QR-1 a QR-15)
 **Fecha:** 2026-11-02
 **Contrato:** `openapi/restia-api.yaml`
 
@@ -24,7 +24,9 @@ El documento no dice qué hace el cliente en esa página. Esa es la decisión de
 | **QR-10** | Autofacturación (pendiente de Fiscal) | Fuera de v1; las facturas las genera el personal | Portal público de facturación |
 | **QR-11** | Despliegue | Dominio distinto al del panel, sin cookies, `Referrer-Policy: no-referrer`, `noindex` y sin scripts de terceros | Mismo dominio del panel |
 | **QR-12** | Permisos del personal | `ADMIN` y `MANAGER` consultan y rotan, solo en Web | Solo `ADMIN` |
-| **QR-13** | Menú del cliente (fase 4) | El menú público agrega la descripción del platillo (texto para el cliente que escribe el gerente) y `recommended` (M-13) para la recomendación del día. Sigue sin códigos, recetas, costos ni datos fiscales | Mantener el menú sin descripciones |
+| **QR-13** | Datos de la sucursal (fase 4) | El contexto agrega teléfono, dirección sin país y un enlace "Cómo llegar" de Google Maps (`/maps/search/?api=1`), que no necesita llave ni carga scripts en la página | Mapa incrustado con llave de Google Maps |
+| **QR-14** | Asistente del menú (fase 4) | Chat con la API de Claude (por omisión `claude-haiku-5-5`, `RESTIA_ASSISTANT_MODEL`) que responde sobre la carta, la dirección y el horario. Sin pedidos ni datos de la sesión (QR-1, QR-2); la conversación vive en la página y no se guarda; 6 preguntas por minuto por mesa y 20 por IP; sin `ANTHROPIC_API_KEY` no se ofrece | Guardar conversaciones o dejar que el asistente tome pedidos |
+| **QR-15** | Menú del cliente (fase 4) | El menú público agrega la descripción del platillo (texto para el cliente que escribe el gerente) y `recommended` (M-13) para la recomendación del día. Sigue sin códigos, recetas, costos ni datos fiscales | Mantener el menú sin descripciones |
 
 ## 2. Por qué tan limitado (QR-1, QR-2)
 

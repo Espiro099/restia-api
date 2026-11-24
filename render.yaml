@@ -28,6 +28,9 @@ services:
         sync: false
       - key: MAIL_FROM_ADDRESS
         sync: false
+      # Asistente del menú QR (QR-14): llave de la API de Claude. Sin ella, la página no muestra el asistente.
+      - key: ANTHROPIC_API_KEY
+        sync: false
 
   # Impresión, avisos, inventario, reportes, reservaciones y facturación avanzan aquí (routes/console.php).
   # - type: worker
