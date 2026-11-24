@@ -9,10 +9,8 @@ use App\Identity\GoogleIdTokenVerifier;
 use App\Identity\GoogleTokens;
 use App\Mail\ResendTransport;
 use App\Models\PersonalAccessToken;
-use App\PublicQr\AssistantModel;
-use App\PublicQr\ClaudeAssistantModel;
-use App\PublicSite\AssistantModel as SiteAssistantModel;
-use App\PublicSite\ClaudeAssistantModel as SiteClaudeAssistantModel;
+use App\PublicSite\AssistantModel;
+use App\PublicSite\ClaudeAssistantModel;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\ServiceProvider;
 use Laravel\Sanctum\Sanctum;
@@ -32,10 +30,9 @@ class AppServiceProvider extends ServiceProvider
             default => throw new RuntimeException('RESTIA_PAC no corresponde a ningún conector.'),
         });
         // QR-14 y SITE-3: los asistentes del menú y del sitio con Claude; sin ANTHROPIC_API_KEY no se ofrecen.
-        $this->app->singleton(AssistantModel::class, fn () => new ClaudeAssistantModel(config('restia.assistant.key'), config('restia.assistant.model')));
         // GOOGLE-2: el ID token se verifica con las llaves públicas de Google; sin GOOGLE_CLIENT_ID está apagado.
         $this->app->singleton(GoogleTokens::class, fn () => new GoogleIdTokenVerifier(config('restia.auth.google_client_id')));
-        $this->app->singleton(SiteAssistantModel::class, fn () => new SiteClaudeAssistantModel(config('restia.assistant.key'), config('restia.assistant.model')));
+        $this->app->singleton(AssistantModel::class, fn () => new ClaudeAssistantModel(config('restia.assistant.key'), config('restia.assistant.model')));
     }
 
     /**
