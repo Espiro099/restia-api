@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Fiscal\Issuers;
+use App\Http\Middleware\AuthorizeAnyBranch;
 use App\Http\Middleware\AuthorizeBranch;
 use App\Identity\Branches;
 use App\Models\FiscalIssuer;
@@ -15,7 +16,10 @@ use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
-/** Emisores fiscales y su CSD (F-12, F-13). Catálogo global, solo para ADMIN. */
+/**
+ * Emisores fiscales y su CSD (F-12, F-13). Catálogo global, solo para ADMIN, y cada ADMIN solo ve y cambia los
+ * emisores que no usa ninguna sucursal fuera de las suyas (F-16).
+ */
 class FiscalIssuerController extends Controller
 {
     /** @return array<string, list<mixed>> */
@@ -32,7 +36,7 @@ class FiscalIssuerController extends Controller
     public function index(Request $request): JsonResponse
     {
         [$page, $perPage] = Api::page($request);
-        $query = FiscalIssuer::query()->orderBy('rfc');
+        $query = FiscalIssuer::query()->whereNotIn('_id', Issuers::outOfReach(AuthorizeAnyBranch::branches($request)))->orderBy('rfc');
         $total = (clone $query)->count();
         $rows = $query->skip(($page - 1) * $perPage)->take($perPage)->get();
 
@@ -49,9 +53,9 @@ class FiscalIssuerController extends Controller
         return $this->etagged(Issuers::create($request->user(), $in), 201);
     }
 
-    public function show(string $fiscalIssuerId): JsonResponse
+    public function show(Request $request, string $fiscalIssuerId): JsonResponse
     {
-        return $this->etagged($this->find($fiscalIssuerId));
+        return $this->etagged($this->find($request, $fiscalIssuerId));
     }
 
     public function update(Request $request, string $fiscalIssuerId): JsonResponse
@@ -62,7 +66,7 @@ class FiscalIssuerController extends Controller
             throw ValidationException::withMessages(['legalName' => 'Indica al menos un campo.']);
         }
 
-        return $this->etagged(Issuers::update($request->user(), $this->find($fiscalIssuerId), $version, $in));
+        return $this->etagged(Issuers::update($request->user(), $this->find($request, $fiscalIssuerId), $version, $in));
     }
 
     public function status(Request $request, string $fiscalIssuerId): JsonResponse
@@ -73,7 +77,7 @@ class FiscalIssuerController extends Controller
             'reason' => ['required', 'string', 'min:3', 'max:500'],
         ]);
 
-        return $this->etagged(Issuers::setStatus($request->user(), $this->find($fiscalIssuerId), $version, $in['status'], $in['reason']));
+        return $this->etagged(Issuers::setStatus($request->user(), $this->find($request, $fiscalIssuerId), $version, $in['status'], $in['reason']));
     }
 
     /** F-12: el contenido va directo al PAC; aquí no se guarda ni se registra. */
@@ -82,7 +86,7 @@ class FiscalIssuerController extends Controller
         $version = Floor::ifMatch($request);
         $in = Multipart::read($request, ['certificate', 'privateKey'], ['password'], 16384, 256);
 
-        return $this->etagged(Issuers::registerCsd($request->user(), $this->find($fiscalIssuerId), $version, $in['certificate'], $in['privateKey'], $in['password']));
+        return $this->etagged(Issuers::registerCsd($request->user(), $this->find($request, $fiscalIssuerId), $version, $in['certificate'], $in['privateKey'], $in['password']));
     }
 
     public function assignToBranch(Request $request): JsonResponse
@@ -96,9 +100,15 @@ class FiscalIssuerController extends Controller
         return $response;
     }
 
-    private function find(string $id): FiscalIssuer
+    /** Un emisor fuera del alcance del ADMIN responde igual que uno que no existe (F-16). */
+    private function find(Request $request, string $id): FiscalIssuer
     {
-        return FiscalIssuer::query()->where('uuid', Floor::uuid($id))->first() ?? throw new NotFoundHttpException;
+        $issuer = FiscalIssuer::query()->where('uuid', Floor::uuid($id))->first();
+        if (! $issuer || ! Issuers::inReach($issuer, AuthorizeAnyBranch::branches($request))) {
+            throw new NotFoundHttpException;
+        }
+
+        return $issuer;
     }
 
     private function etagged(FiscalIssuer $issuer, int $status = 200): JsonResponse

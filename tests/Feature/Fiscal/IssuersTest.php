@@ -30,6 +30,28 @@ class IssuersTest extends FloorTestCase
         return $this->as('admin', 'POST', '/fiscal-issuers', $this->issuerBody)->assertCreated()->json('data');
     }
 
+    public function test_admin_de_otra_sucursal_no_ve_ni_usa_el_emisor_ajeno(): void
+    {
+        // F-16: el emisor de CENTRO no es visible para el ADMIN que solo administra NORTE.
+        $id = $this->readyIssuer();
+        $norte = $this->branch('NORTE');
+        $this->staff['otro'] = $this->staffMember('admin.norte@ejemplo.mx', $norte, 'ADMIN');
+        $this->as('otro', 'GET', '/fiscal-issuers')->assertOk()->assertJsonCount(0, 'data')->assertJsonPath('meta.pagination.total', 0);
+        $this->as('otro', 'GET', "/fiscal-issuers/$id")->assertNotFound();
+        $this->as('otro', 'PATCH', "/fiscal-issuers/$id", ['legalName' => 'Ajena'], ['If-Match' => '"3"'])->assertNotFound();
+        $this->as('otro', 'POST', "/fiscal-issuers/$id/status", ['status' => 'INACTIVE', 'reason' => 'Ajena'], ['If-Match' => '"3"'])->assertNotFound();
+        // Tampoco puede asignarlo a su sucursal para facturar con ese RFC.
+        $this->app['auth']->forgetGuards();
+        $this->json('PUT', "/api/v1/branches/{$norte->uuid}/fiscal-issuer", ['fiscalIssuerId' => $id],
+            ['Authorization' => 'Bearer '.$this->staff['otro']['access'], 'If-Match' => '"'.$norte->fresh()->version.'"'])->assertNotFound();
+        $this->assertNull($norte->fresh()->fiscal_issuer_id);
+
+        // Uno sin sucursal sí lo ve, y el ADMIN de CENTRO sigue viendo el suyo.
+        $this->as('otro', 'POST', '/fiscal-issuers', ['rfc' => 'XIA190128J61', 'legalName' => 'XIAOMI', 'taxRegime' => '601', 'postalCode' => '44100'])->assertCreated();
+        $this->as('otro', 'GET', '/fiscal-issuers')->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('data.0.rfc', 'XIA190128J61');
+        $this->as('admin', 'GET', "/fiscal-issuers/$id")->assertOk();
+    }
+
     public function test_alta_lectura_y_cambios(): void
     {
         $this->as('gerente', 'POST', '/fiscal-issuers', $this->issuerBody)->assertStatus(403);

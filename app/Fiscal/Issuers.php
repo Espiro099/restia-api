@@ -9,12 +9,14 @@ use App\Fiscal\Pac\PacFailure;
 use App\Identity\MobileAuth;
 use App\Models\Branch;
 use App\Models\FiscalIssuer;
+use App\Models\Membership;
 use App\Models\User;
 use App\Support\Audit;
 use App\Support\Mongo;
 use App\Support\Outbox;
 use Closure;
 use MongoDB\BSON\ObjectId;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Throwable;
 
 /**
@@ -117,12 +119,46 @@ final class Issuers
         ]);
     }
 
+    /**
+     * F-16: emisores que usa alguna sucursal fuera de `$managed`. Un ADMIN solo ve y cambia los demás: los que
+     * usan únicamente sus sucursales y los que todavía no tiene ninguna. Así no puede tocar el CSD ni facturar
+     * con el RFC de otra sucursal que no administra.
+     *
+     * @param  list<string>  $managed  sucursales donde el actor tiene fiscal.manage_issuers
+     * @return list<ObjectId>
+     */
+    public static function outOfReach(array $managed): array
+    {
+        return Branch::query()->whereNotNull('fiscal_issuer_id')
+            ->whereNotIn('_id', array_map(fn ($id) => new ObjectId($id), $managed))
+            ->pluck('fiscal_issuer_id')->map(fn ($id) => new ObjectId((string) $id))->unique()->values()->all();
+    }
+
+    /** @param list<string> $managed */
+    public static function inReach(FiscalIssuer $issuer, array $managed): bool
+    {
+        return ! in_array((string) $issuer->getKey(), array_map('strval', self::outOfReach($managed)), true);
+    }
+
+    /** @return list<string> sucursales donde `$user` tiene fiscal.manage_issuers */
+    public static function managedBranches(User $user): array
+    {
+        return Membership::query()->where('user_id', new ObjectId($user->getKey()))->where('status', Membership::ACTIVE)->get()
+            ->filter(fn (Membership $m) => $m->can('fiscal.manage_issuers'))
+            ->map(fn (Membership $m) => (string) $m->branch_id)->unique()->values()->all();
+    }
+
     /** Solo afecta a facturas nuevas: las existentes conservan su emisor. */
     public static function assignToBranch(User $actor, Branch $branch, int $version, string $issuerUuid): Branch
     {
         $branchId = new ObjectId($branch->getKey());
-        Mongo::transaction(function () use ($actor, $branchId, $version, $issuerUuid) {
+        $managed = self::managedBranches($actor);
+        Mongo::transaction(function () use ($actor, $branchId, $version, $issuerUuid, $managed) {
             $issuer = FiscalIssuer::query()->where('uuid', strtolower($issuerUuid))->first();
+            // Un emisor de otra sucursal que no administra se trata como inexistente (F-16).
+            if ($issuer && ! self::inReach($issuer, $managed)) {
+                throw new NotFoundHttpException;
+            }
             if (! $issuer?->canIssue()) {
                 throw new DomainConflict('FISCAL_ISSUER_NOT_CONFIGURED');
             }
