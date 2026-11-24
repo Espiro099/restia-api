@@ -20450,6 +20450,39 @@ components:
           pattern: ^[A-Z]{3}$
         timezone:
           type: string
+        phone:
+          type: string
+          nullable: true
+          description: Teléfono de la sucursal, si lo tiene (QR-13).
+        address:
+          nullable: true
+          description: Dirección pública de la sucursal, sin país (QR-13). Null si no tiene.
+          allOf:
+          - $ref: '#/components/schemas/PublicAddress'
+        mapsUrl:
+          type: string
+          format: uri
+          nullable: true
+          description: Enlace de Google Maps que busca la dirección; no requiere llave (QR-13).
+    PublicAddress:
+      type: object
+      required:
+      - line1
+      properties:
+        line1:
+          type: string
+        line2:
+          type: string
+          nullable: true
+        city:
+          type: string
+          nullable: true
+        state:
+          type: string
+          nullable: true
+        postalCode:
+          type: string
+          nullable: true
     PublicMenuProduct:
       type: object
       required:

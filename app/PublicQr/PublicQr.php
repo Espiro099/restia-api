@@ -50,12 +50,43 @@ final class PublicQr
 
     public static function context(RestaurantTable $table, Branch $branch): array
     {
+        $address = self::address($branch);
+
         return [
             'restaurantName' => $branch->name,
             'tableNumber' => (int) $table->number,
             'currency' => $branch->currency ?: 'MXN',
             'timezone' => $branch->timezone ?: 'America/Mexico_City',
+            // QR-13: lo que el cliente necesita para volver o llegar; el enlace abre Google Maps sin llave.
+            'phone' => $branch->phone ?: null,
+            'address' => $address,
+            'mapsUrl' => $address ? 'https://www.google.com/maps/search/?api=1&query='.rawurlencode(self::addressLine($address)) : null,
         ];
+    }
+
+    /** Dirección pública de la sucursal, sin el país (todas son de México), o null si no tiene. */
+    private static function address(Branch $branch): ?array
+    {
+        $a = $branch->address ? (array) json_decode(json_encode($branch->address), true) : null;
+        if (! $a || empty($a['line1'])) {
+            return null;
+        }
+
+        return [
+            'line1' => $a['line1'],
+            'line2' => $a['line2'] ?? null,
+            'city' => $a['city'] ?? null,
+            'state' => $a['state'] ?? null,
+            'postalCode' => $a['postalCode'] ?? null,
+        ];
+    }
+
+    /** "Av. Juárez 120, Centro, 44100 Guadalajara, Jalisco" */
+    public static function addressLine(array $a): string
+    {
+        $place = trim(($a['postalCode'] ?? '').' '.($a['city'] ?? ''));
+
+        return implode(', ', array_filter([$a['line1'], $a['line2'] ?? null, $place ?: null, $a['state'] ?? null]));
     }
 
     /** QR-7: el menú interno sin códigos, descripciones internas ni la sucursal. Los agotados se ven marcados. */
