@@ -16565,10 +16565,12 @@ components:
         customer:
           $ref: '#/components/schemas/ReservationCustomerRecord'
         source:
+          description: STAFF la capturó el personal, AI el agente de reservas y WEB el sitio de La Mesa (SITE-2)
           type: string
           enum:
           - STAFF
           - AI
+          - WEB
         notes:
           type: string
           nullable: true
