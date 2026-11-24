@@ -11994,7 +11994,7 @@ paths:
       summary: Envía una solicitud de reserva
       description: Crea una reserva PENDING con source WEB y devuelve su folio. No aparta mesas (R-1) y vence
         si nadie la confirma (R-7); el personal la confirma desde la app o el panel. Máximo dos activas por
-        teléfono y sucursal, y tres solicitudes por minuto por IP.
+        teléfono y sucursal, y tres solicitudes por minuto por IP. Si el correo está disponible, se puede indicar para recibir la confirmación del personal.
       security:
       - {}
       x-restia:
@@ -12009,7 +12009,7 @@ paths:
         audit: Creación, con actor SYSTEM
         outbox: reservation.created
         mode: Síncrono
-        sensitive: Nombre y teléfono del cliente
+        sensitive: Nombre, teléfono y correo opcional del cliente
         clients:
         - Sitio web
         conflictCodes:
@@ -16544,6 +16544,11 @@ components:
           format: uuid
           nullable: true
           description: En RESERVATION_REQUESTED, la solicitud del sitio que hay que confirmar.
+        reservationStartAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Inicio de la reserva para abrir su día en la agenda.
         count:
           type: integer
           minimum: 1
@@ -21186,6 +21191,9 @@ components:
             assistant:
               type: boolean
               description: El asistente del sitio está disponible
+            reservationEmail:
+              type: boolean
+              description: Se admite correo para confirmar reservas web
     PublicSiteAvailabilityResponse:
       type: object
       required:
@@ -21247,6 +21255,12 @@ components:
           type: string
           nullable: true
           maxLength: 300
+        email:
+          type: string
+          format: email
+          nullable: true
+          maxLength: 254
+          description: Opcional cuando reservationEmail está habilitado. Se utiliza para enviar la confirmación.
     PublicReservationLookupRequest:
       type: object
       required:

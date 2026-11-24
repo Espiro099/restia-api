@@ -11,9 +11,11 @@ use App\PublicSite\AssistantReply;
 use App\PublicSite\AssistantUnavailable;
 use App\PublicSite\ClaudeAssistantModel;
 use App\PublicSite\Phone;
+use App\PublicSite\ReservationConfirmation;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 use Illuminate\Testing\TestResponse;
 use Tests\Feature\Floor\FloorTestCase;
@@ -67,6 +69,7 @@ class SiteTest extends FloorTestCase
         $this->assertSame('https://www.google.com/maps/search/?api=1&query='.rawurlencode('20.674,-103.344'), $b['mapsUrl']);
         $this->assertArrayNotHasKey('id', $b, 'sin identificadores internos');
         $this->assertTrue($r->json('meta.assistant'));
+        $this->assertFalse($r->json('meta.reservationEmail'));
     }
 
     public function test_el_administrador_pone_el_punto_en_el_mapa(): void
@@ -126,6 +129,36 @@ class SiteTest extends FloorTestCase
         $this->assertSame(Reservation::query()->where('confirmation_code', $folio)->first()->uuid, $mine->json('data.0.reservationId'));
         // El mesero no la confirma desde la campana.
         $this->assertSame(0, $this->as('mesero', 'GET', 'notifications?perPage=10')->json('meta.unreadCount'));
+    }
+
+    public function test_solo_envia_correo_si_el_personal_confirma_una_solicitud_con_correo(): void
+    {
+        $email = 'cliente@example.com';
+        $this->request(['email' => $email])->assertUnprocessable();
+        config([
+            'restia.site.reservation_email' => true,
+            'mail.default' => 'resend',
+            'services.resend.key' => 'test',
+            'mail.from.address' => 'reservas@example.com',
+        ]);
+        Http::fake(['api.resend.com/*' => Http::response(['id' => 'mail-id'])]);
+        $this->site('GET', 'branches')->assertJsonPath('meta.reservationEmail', true);
+        $created = $this->request(['email' => $email])->assertCreated();
+        $created->assertJsonMissingPath('data.email');
+        $folio = $created->json('data.folio');
+        $r = Reservation::query()->where('confirmation_code', $folio)->firstOrFail();
+
+        $this->assertSame(0, ReservationConfirmation::sendPending());
+        Http::assertNothingSent();
+
+        $this->as('gerente', 'POST', "reservations/{$r->uuid}/confirm", [],
+            ['If-Match' => '"'.$r->version.'"'] + $this->key())->assertOk()->assertJsonPath('data.status', 'CONFIRMED');
+        $this->assertSame(1, ReservationConfirmation::sendPending());
+        $this->assertSame(0, ReservationConfirmation::sendPending());
+        Http::assertSentCount(1);
+        Http::assertSent(fn ($request) => $request['to'] === [$email]
+            && str_contains($request['text'], $folio)
+            && $request->hasHeader('Idempotency-Key'));
     }
 
     public function test_reglas_de_la_solicitud(): void

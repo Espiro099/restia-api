@@ -80,6 +80,8 @@ final class Notifications
     /** @return array<string, mixed> */
     public static function present(Notification $n): array
     {
+        $reservation = $n->reservation_id ? Reservation::query()->find((string) $n->reservation_id) : null;
+
         return [
             'id' => $n->uuid,
             'type' => $n->type,
@@ -88,7 +90,8 @@ final class Notifications
             'tableNumber' => $n->table_number,
             'sessionId' => $n->session_id ? TableSession::query()->find((string) $n->session_id)?->uuid : null,
             'checkId' => $n->check_id ? Check::query()->find((string) $n->check_id)?->uuid : null,
-            'reservationId' => $n->reservation_id ? Reservation::query()->find((string) $n->reservation_id)?->uuid : null,
+            'reservationId' => $reservation?->uuid,
+            'reservationStartAt' => TableSessions::time($reservation?->start_at),
             'count' => (int) ($n->count ?: 1),
             'readAt' => TableSessions::time($n->read_at),
             'createdAt' => TableSessions::time($n->created_at),

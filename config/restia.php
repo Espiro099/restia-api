@@ -96,6 +96,7 @@ return [
 
     // Sitio público de La Mesa (Decisiones_Public_Site). Límites por minuto y por IP.
     'site' => [
+        'reservation_email' => env('RESTIA_RESERVATION_EMAIL_ENABLED', false),
         'limits' => [
             'reads' => 60,
             'requests' => 3,

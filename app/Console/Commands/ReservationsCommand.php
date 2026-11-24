@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\PublicSite\ReservationConfirmation;
 use App\Reservations\Reservations;
 use Illuminate\Console\Command;
 
@@ -17,7 +18,8 @@ class ReservationsCommand extends Command
         $expired = Reservations::expirePending();
         $noShows = Reservations::markNoShows();
         $purged = Reservations::purgePersonalData();
-        $this->line("vencidas $expired, no presentadas $noShows, datos borrados $purged");
+        $sent = ReservationConfirmation::sendPending();
+        $this->line("vencidas $expired, no presentadas $noShows, datos borrados $purged, confirmaciones enviadas $sent");
 
         return self::SUCCESS;
     }

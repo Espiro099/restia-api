@@ -131,7 +131,7 @@ final class Site
      * Crea la solicitud (PENDING, source WEB). Vuelve a revisar el lugar al momento, porque la página pudo
      * mostrar los horarios hace rato.
      *
-     * @param  array{date: string, time: string, partySize: int, name: string, phone: string, notes?: ?string}  $in
+     * @param  array{date: string, time: string, partySize: int, name: string, phone: string, notes?: ?string, email?: ?string}  $in
      * @return array{0: int, 1: array<string, mixed>}
      */
     public static function request(Branch $branch, string $key, array $in): array
@@ -161,7 +161,8 @@ final class Site
                 $r = Reservation::query()->create([
                     'branch_id' => $branchId, 'status' => Reservation::PENDING,
                     'start_at' => $start, 'end_at' => $end, 'party_size' => (int) $in['partySize'], 'customer_id' => null,
-                    'customer_snapshot' => ['name' => trim($in['name']), 'phone' => $phone],
+                    'customer_snapshot' => ['name' => trim($in['name']), 'phone' => $phone]
+                        + (empty($in['email']) ? [] : ['email' => $in['email']]),
                     'notes' => isset($in['notes']) && trim((string) $in['notes']) !== '' ? trim($in['notes']) : null,
                     'source' => 'WEB', 'confirmation_code' => Reservations::code($branchId),
                     'planned_table_ids' => [], 'plan_conflict' => false, 'arrival_registered_at' => null, 'session_id' => null,
