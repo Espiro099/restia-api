@@ -44,6 +44,7 @@ Route::controller(PublicQrController::class)->prefix('public')->middleware('qr')
     Route::get('context', 'context');
     Route::get('menu', 'menu');
     Route::post('presence', 'presence');
+    Route::post('assistant', 'assistant');
 });
 
 // Sitio público de La Mesa (SITE-1 a SITE-4): sucursales, solicitudes de reserva y asistente. Sin cuenta.

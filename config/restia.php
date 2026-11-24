@@ -89,6 +89,9 @@ return [
             'reads_per_ip' => 60,
             'presence_per_token' => 6,
             'invalid_per_ip' => 20,
+            // QR-14: preguntas al asistente por minuto.
+            'assistant_per_token' => 6,
+            'assistant_per_ip' => 20,
         ],
     ],
 
@@ -102,7 +105,7 @@ return [
         ],
     ],
 
-    // Asistente del sitio (SITE-3) con la API de Claude. Sin llave, la página no lo muestra.
+    // Asistentes del menú QR (QR-14) y del sitio (SITE-3) con la API de Claude. Sin llave no se ofrecen.
     'assistant' => [
         'key' => env('ANTHROPIC_API_KEY'),
         'model' => env('RESTIA_ASSISTANT_MODEL', 'claude-haiku-5-5'),

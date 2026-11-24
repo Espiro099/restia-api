@@ -3,27 +3,27 @@
 **Estado:** generado desde `openapi/restia-api.yaml`
 **Fecha:** 2026-11-02
 
-Cubre las 222 operaciones del contrato. Se regenera con `tools/gen_matrices.py`; no se edita a mano.
+Cubre las 223 operaciones del contrato. Se regenera con `tools/gen_matrices.py`; no se edita a mano.
 
 ## 1. Criterios de la sección 36
 
 | # | Criterio | Operaciones que lo responden |
 |---|---|---|
-| 1 | ¿Quién puede invocarlo? | 222 de 222 |
-| 2 | ¿En qué sucursal? | 222 de 222 |
-| 3 | ¿Qué permiso necesita? | 222 de 222 |
-| 4 | ¿Qué estado requiere? | 222 de 222 |
-| 5 | ¿Qué payload recibe? | 201 de 222 (las otras 21 son escrituras sin cuerpo, porque la ruta basta) |
-| 6 | ¿Qué devuelve? | 222 de 222 |
-| 7 | ¿Qué errores puede producir? | 222 de 222 (`x-restia.conflictCodes` da los 409 exactos) |
-| 8 | ¿Es idempotente? | 222 de 222 |
-| 9 | ¿Requiere versión? | 221 de 222 (Orders por lotes lleva la versión en el cuerpo) |
-| 10 | ¿Qué ocurre con concurrencia? | 222 de 222 |
-| 11 | ¿Genera auditoría? | 222 de 222 |
-| 12 | ¿Genera outbox? | 222 de 222 |
-| 13 | ¿Es síncrono o asíncrono? | 222 de 222 |
-| 14 | ¿Qué datos son sensibles? | 222 de 222 |
-| 15 | ¿Qué cliente lo consume? | 222 de 222 |
+| 1 | ¿Quién puede invocarlo? | 223 de 223 |
+| 2 | ¿En qué sucursal? | 223 de 223 |
+| 3 | ¿Qué permiso necesita? | 223 de 223 |
+| 4 | ¿Qué estado requiere? | 223 de 223 |
+| 5 | ¿Qué payload recibe? | 202 de 223 (las otras 21 son escrituras sin cuerpo, porque la ruta basta) |
+| 6 | ¿Qué devuelve? | 223 de 223 |
+| 7 | ¿Qué errores puede producir? | 223 de 223 (`x-restia.conflictCodes` da los 409 exactos) |
+| 8 | ¿Es idempotente? | 223 de 223 |
+| 9 | ¿Requiere versión? | 222 de 223 (Orders por lotes lleva la versión en el cuerpo) |
+| 10 | ¿Qué ocurre con concurrencia? | 223 de 223 |
+| 11 | ¿Genera auditoría? | 223 de 223 |
+| 12 | ¿Genera outbox? | 223 de 223 |
+| 13 | ¿Es síncrono o asíncrono? | 223 de 223 |
+| 14 | ¿Qué datos son sensibles? | 223 de 223 |
+| 15 | ¿Qué cliente lo consume? | 223 de 223 |
 
 ## 2. Operaciones
 
@@ -298,13 +298,14 @@ Otros actores: identidades de servicio (`reservation-ai`, `printing-agent`) o vi
 | `POST /print-agent/attempts/{attemptId}/start` | – | – | – | – | printing-agent | printing-agent | CLAIMED, con este intento vigente | No | Sí, en efecto | No | No | Síncrono | printing-agent | PRINT_JOB_LEASE_LOST |
 | `POST /print-agent/attempts/{attemptId}/result` | – | – | – | – | printing-agent | printing-agent | PRINTING, o UNKNOWN por vencimiento, con este intento vigente | No | Sí, en efecto | No | print_job.failed o print_job.unknown | Síncrono | printing-agent | PRINT_JOB_LEASE_LOST |
 
-### Public QR (4)
+### Public QR (5)
 
 | Operación | ADMIN | MANAGER | WAITER | KITCHEN | Otros | Permiso | Estado requerido | If-Match | Idempotencia | Auditoría | Outbox | Modo | Clientes | Códigos 409 |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | `GET /public/context` | – | – | – | – | Visitante con token QR | Token QR válido | Sucursal activa; mesa distinta de INACTIVE | No | Sí, operación de lectura | No | No | Síncrono | QR público | – |
 | `GET /public/menu` | – | – | – | – | Visitante con token QR | Token QR válido | Sucursal activa; mesa distinta de INACTIVE | No | Sí, operación de lectura | No | No | Síncrono | QR público | – |
 | `GET /public/images/{imageId}` | – | – | – | – | Cualquiera con la URL | Ninguno; la URL sale del menú | La foto sigue asignada a su producto | No | Sí, operación de lectura | No | No | Síncrono | Web, Android, QR público | – |
+| `POST /public/assistant` | – | – | – | – | Visitante con token QR | Token QR válido | Sucursal activa; mesa distinta de INACTIVE | No | No; cada pregunta genera una respuesta nueva | No | No | Síncrono | QR público | – |
 | `POST /public/presence` | – | – | – | – | Visitante con token QR | Token QR válido | Sucursal activa; mesa distinta de INACTIVE | No | Sí, en efecto | No | No | Síncrono | QR público | – |
 
 ### Public Site (5)

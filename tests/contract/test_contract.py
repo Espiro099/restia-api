@@ -192,9 +192,10 @@ def test_publico_sin_datos_internos(schema):
     assert not props(schema) & forbidden
 
 
-def test_publico_solo_tres_operaciones():
+def test_publico_solo_cuatro_operaciones():
+    # QR-1 más el asistente del menú (QR-14); ninguna toca la sesión, la cuenta ni los pedidos.
     qr = {o['operationId'] for _, _, o in OPS if {'PublicQrToken': []} in o.get('security', [])}
-    assert qr == {'getPublicContext', 'getPublicMenu', 'registerPublicPresence'}
+    assert qr == {'getPublicContext', 'getPublicMenu', 'registerPublicPresence', 'askPublicAssistant'}
 
 
 def test_sin_cuenta_solo_las_operaciones_abiertas():
