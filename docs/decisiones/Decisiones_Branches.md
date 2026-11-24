@@ -1,6 +1,6 @@
 # Módulo Branches: decisiones del contrato
 
-**Estado:** APROBADAS (B-1 a B-7)
+**Estado:** APROBADAS (B-1 a B-8)
 **Fecha:** 2026-11-02
 **Contrato:** `openapi/restia-api.yaml`
 
@@ -28,6 +28,7 @@ El documento maestro solo define de `branches` sus índices, `unique(uuid)` y `s
 | **B-5** | Efecto de `INACTIVE` | Permite consultas; rechaza operaciones nuevas con `409 BRANCH_INACTIVE` | Bloquear también las consultas |
 | **B-6** | Cambio de `timezone` o `businessDayCutoff` | Solo sin operación activa, porque altera `business_date` | Aplicarlo desde el siguiente día operativo |
 | **B-7** | Falta de `If-Match` | `400 VERSION_REQUIRED` en todo el contrato | `428`, que no está en la sección 30 |
+| **B-8** | Punto en el mapa | `location {lat, lng}` opcional, con 6 decimales; lo pone el administrador en el panel y lo usa el sitio público | Geocodificar la dirección con un servicio externo |
 
 B-6 también adelanta parte de la tarea 17: el corte de `business_date` se configura por sucursal.
 

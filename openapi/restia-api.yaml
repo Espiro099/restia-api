@@ -46,6 +46,8 @@ tags:
   description: Impresoras, rutas, agentes y trabajos de impresión
 - name: Public QR
   description: Experiencia pública de la mesa
+- name: Public Site
+  description: Sitio público de La Mesa (sucursales, solicitudes de reserva y asistente)
 - name: Users
   description: Empleados y membresías
 - name: Customers
@@ -11713,6 +11715,282 @@ paths:
           $ref: '#/components/responses/TooManyAttempts'
         '500':
           $ref: '#/components/responses/InternalError'
+  /public/site/branches:
+    get:
+      tags:
+      - Public Site
+      operationId: listPublicSiteBranches
+      summary: Lista las sucursales activas para el sitio de La Mesa
+      description: Dirección, teléfono, punto en el mapa y horario de reservas, sin identificadores internos.
+        La distancia a la persona se calcula en el navegador; su ubicación no llega a la API. meta.assistant
+        dice si el asistente está disponible.
+      security:
+      - {}
+      x-restia:
+        actors:
+        - Visitante del sitio
+        branch: Todas las sucursales activas
+        permission: Ninguno; sitio público con límite por IP
+        requiredState: Sucursal activa
+        idempotent: Sí, operación de lectura
+        requiresVersion: false
+        concurrency: No aplica
+        audit: false
+        outbox: false
+        mode: Síncrono
+        sensitive: Ninguno
+        clients:
+        - Sitio web
+      parameters:
+      - $ref: '#/components/parameters/RequestId'
+      responses:
+        '200':
+          description: Sucursales ordenadas por nombre
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/XRequestId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicSiteBranchListResponse'
+        '429':
+          $ref: '#/components/responses/TooManyAttempts'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /public/site/branches/{code}/availability:
+    get:
+      tags:
+      - Public Site
+      operationId: getPublicSiteAvailability
+      summary: Horarios con lugar para pedir una reserva
+      description: Cada 30 minutos dentro del horario de reservas, con al menos 60 minutos de antelación y mesas
+        para el grupo durante 90 minutos. Solo orienta; la solicitud vuelve a revisar el lugar.
+      security:
+      - {}
+      x-restia:
+        actors:
+        - Visitante del sitio
+        branch: Explícita en la ruta por código
+        permission: Ninguno; sitio público con límite por IP
+        requiredState: Sucursal activa
+        idempotent: Sí, operación de lectura
+        requiresVersion: false
+        concurrency: No aplica
+        audit: false
+        outbox: false
+        mode: Síncrono
+        sensitive: Ninguno
+        clients:
+        - Sitio web
+      parameters:
+      - $ref: '#/components/parameters/RequestId'
+      - name: code
+        in: path
+        required: true
+        description: Código de la sucursal
+        schema:
+          type: string
+          maxLength: 32
+      - name: date
+        in: query
+        required: true
+        description: Fecha local AAAA-MM-DD, entre hoy y 60 días
+        schema:
+          type: string
+          format: date
+      - name: partySize
+        in: query
+        required: true
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 12
+      responses:
+        '200':
+          description: Horarios disponibles
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/XRequestId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicSiteAvailabilityResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        '429':
+          $ref: '#/components/responses/TooManyAttempts'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /public/site/reservation-requests:
+    post:
+      tags:
+      - Public Site
+      operationId: createPublicReservationRequest
+      summary: Envía una solicitud de reserva
+      description: Crea una reserva PENDING con source WEB y devuelve su folio. No aparta mesas (R-1) y vence
+        si nadie la confirma (R-7); el personal la confirma desde la app o el panel. Máximo dos activas por
+        teléfono y sucursal, y tres solicitudes por minuto por IP.
+      security:
+      - {}
+      x-restia:
+        actors:
+        - Visitante del sitio
+        branch: Explícita en el cuerpo por código
+        permission: Ninguno; sitio público con límite por IP
+        requiredState: Sucursal activa
+        idempotent: Sí, con Idempotency-Key
+        requiresVersion: false
+        concurrency: Vuelve a revisar el horario al crear
+        audit: Creación, con actor SYSTEM
+        outbox: reservation.created
+        mode: Síncrono
+        sensitive: Nombre y teléfono del cliente
+        clients:
+        - Sitio web
+        conflictCodes:
+        - IDEMPOTENCY_KEY_REUSED
+        - RESERVATION_NOT_AVAILABLE
+        - RESERVATION_ACTIVE_LIMIT_EXCEEDED
+      parameters:
+      - $ref: '#/components/parameters/RequestId'
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PublicReservationRequestCreate'
+      responses:
+        '201':
+          description: Solicitud recibida, pendiente de confirmar
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/XRequestId'
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicReservationRequestResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/ReservationConflict'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        '429':
+          $ref: '#/components/responses/TooManyAttempts'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceBusy'
+  /public/site/reservation-requests/lookup:
+    post:
+      tags:
+      - Public Site
+      operationId: lookupPublicReservationRequest
+      summary: Consulta una solicitud por folio y teléfono
+      description: Los dos deben coincidir; si no, responde 404 igual que un folio que no existe. Va en el cuerpo
+        para que el teléfono no quede en la URL.
+      security:
+      - {}
+      x-restia:
+        actors:
+        - Visitante del sitio
+        branch: Explícita en el cuerpo por código
+        permission: Ninguno; sitio público con límite por IP
+        requiredState: Sucursal activa
+        idempotent: Sí, operación de lectura
+        requiresVersion: false
+        concurrency: No aplica
+        audit: false
+        outbox: false
+        mode: Síncrono
+        sensitive: Nombre del cliente
+        clients:
+        - Sitio web
+      parameters:
+      - $ref: '#/components/parameters/RequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PublicReservationLookupRequest'
+      responses:
+        '200':
+          description: Estado de la solicitud
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/XRequestId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicReservationRequestResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        '429':
+          $ref: '#/components/responses/TooManyAttempts'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /public/site/assistant:
+    post:
+      tags:
+      - Public Site
+      operationId: askPublicSiteAssistant
+      summary: Pregunta al asistente del sitio
+      description: Responde dudas de cartas, sucursales y horarios. Para reservar solo propone los datos en
+        reservationDraft; la persona los revisa y envía la solicitud. No guarda la conversación; la página la
+        manda completa, alternando cliente y asistente y terminando en el cliente.
+      security:
+      - {}
+      x-restia:
+        actors:
+        - Visitante del sitio
+        branch: Todas las sucursales activas
+        permission: Ninguno; sitio público con límite por IP
+        requiredState: Sucursal activa
+        idempotent: No; cada llamada genera una respuesta
+        requiresVersion: false
+        concurrency: No aplica
+        audit: false
+        outbox: false
+        mode: Síncrono
+        sensitive: Lo que escriba la persona; no se guarda
+        clients:
+        - Sitio web
+      parameters:
+      - $ref: '#/components/parameters/RequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PublicSiteAssistantRequest'
+      responses:
+        '200':
+          description: Respuesta del asistente
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/XRequestId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicSiteAssistantResponse'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        '429':
+          $ref: '#/components/responses/TooManyAttempts'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceBusy'
   /branches/{branchId}/tables/{tableId}/qr:
     get:
       tags:
@@ -15558,6 +15836,11 @@ components:
         address:
           allOf:
           - $ref: '#/components/schemas/BranchAddress'
+        location:
+          allOf:
+          - $ref: '#/components/schemas/GeoPoint'
+          nullable: true
+          description: Punto en el mapa del sitio público (B-8)
         createdAt:
           $ref: '#/components/schemas/Timestamp'
         updatedAt:
@@ -15655,6 +15938,11 @@ components:
           maxLength: 32
         address:
           $ref: '#/components/schemas/BranchAddress'
+        location:
+          allOf:
+          - $ref: '#/components/schemas/GeoPoint'
+          nullable: true
+          description: Punto en el mapa del sitio público (B-8); null lo quita
         reservationHours:
           type: array
           description: Sin horario no se aceptan reservas
@@ -20530,6 +20818,284 @@ components:
         version:
           type: integer
           minimum: 1
+    GeoPoint:
+      type: object
+      required:
+      - lat
+      - lng
+      additionalProperties: false
+      description: Punto en el mapa en grados decimales; se guarda con 6 decimales
+      properties:
+        lat:
+          type: number
+          minimum: -90
+          maximum: 90
+        lng:
+          type: number
+          minimum: -180
+          maximum: 180
+    PublicSiteBranch:
+      type: object
+      required:
+      - code
+      - name
+      - phone
+      - address
+      - addressText
+      - location
+      - hours
+      - reservations
+      - mapsUrl
+      properties:
+        code:
+          type: string
+        name:
+          type: string
+        phone:
+          type: string
+          nullable: true
+        address:
+          type: object
+          nullable: true
+          properties:
+            line1:
+              type: string
+            line2:
+              type: string
+              nullable: true
+            city:
+              type: string
+              nullable: true
+            state:
+              type: string
+              nullable: true
+            postalCode:
+              type: string
+              nullable: true
+        addressText:
+          type: string
+          nullable: true
+        location:
+          allOf:
+          - $ref: '#/components/schemas/GeoPoint'
+          nullable: true
+        hours:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReservationHours'
+        reservations:
+          type: boolean
+          description: Acepta solicitudes en línea (tiene horario de reservas)
+        mapsUrl:
+          type: string
+          nullable: true
+          description: Búsqueda en Google Maps por coordenadas o por dirección, para "Cómo llegar"
+    PublicSiteBranchListResponse:
+      type: object
+      required:
+      - data
+      - meta
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/PublicSiteBranch'
+        meta:
+          type: object
+          properties:
+            requestId:
+              $ref: '#/components/schemas/Uuid'
+            assistant:
+              type: boolean
+              description: El asistente del sitio está disponible
+    PublicSiteAvailabilityResponse:
+      type: object
+      required:
+      - data
+      - meta
+      properties:
+        data:
+          type: object
+          required:
+          - date
+          - partySize
+          - slots
+          properties:
+            date:
+              type: string
+              format: date
+            partySize:
+              type: integer
+            slots:
+              type: array
+              description: Horas locales HH:MM
+              items:
+                type: string
+        meta:
+          $ref: '#/components/schemas/Meta'
+    PublicReservationRequestCreate:
+      type: object
+      required:
+      - branchCode
+      - date
+      - time
+      - partySize
+      - name
+      - phone
+      additionalProperties: false
+      properties:
+        branchCode:
+          type: string
+          maxLength: 32
+        date:
+          type: string
+          format: date
+        time:
+          type: string
+          pattern: ^([01][0-9]|2[0-3]):[0-5][0-9]$
+        partySize:
+          type: integer
+          minimum: 1
+          maximum: 12
+        name:
+          type: string
+          minLength: 2
+          maxLength: 120
+        phone:
+          type: string
+          maxLength: 20
+          description: 10 dígitos o con lada internacional; se guarda en E.164
+        notes:
+          type: string
+          nullable: true
+          maxLength: 300
+    PublicReservationLookupRequest:
+      type: object
+      required:
+      - branchCode
+      - folio
+      - phone
+      additionalProperties: false
+      properties:
+        branchCode:
+          type: string
+          maxLength: 32
+        folio:
+          type: string
+          minLength: 6
+          maxLength: 16
+        phone:
+          type: string
+          maxLength: 20
+    PublicReservationRequest:
+      type: object
+      required:
+      - folio
+      - status
+      - branchCode
+      - branchName
+      - date
+      - time
+      - partySize
+      - name
+      description: Lo que ve la persona; sin mesas ni notas internas
+      properties:
+        folio:
+          type: string
+        status:
+          $ref: '#/components/schemas/ReservationStatus'
+        branchCode:
+          type: string
+        branchName:
+          type: string
+        date:
+          type: string
+          format: date
+        time:
+          type: string
+        partySize:
+          type: integer
+        name:
+          type: string
+    PublicReservationRequestResponse:
+      type: object
+      required:
+      - data
+      - meta
+      properties:
+        data:
+          $ref: '#/components/schemas/PublicReservationRequest'
+        meta:
+          $ref: '#/components/schemas/Meta'
+    PublicSiteAssistantRequest:
+      type: object
+      required:
+      - messages
+      additionalProperties: false
+      properties:
+        messages:
+          type: array
+          minItems: 1
+          maxItems: 16
+          items:
+            type: object
+            required:
+            - role
+            - content
+            additionalProperties: false
+            properties:
+              role:
+                type: string
+                enum:
+                - user
+                - assistant
+              content:
+                type: string
+                minLength: 1
+                maxLength: 600
+    PublicReservationDraft:
+      type: object
+      description: Datos que propone el asistente; un campo que no sirve llega en null para que la persona lo complete
+      properties:
+        branchCode:
+          type: string
+          nullable: true
+        date:
+          type: string
+          nullable: true
+        time:
+          type: string
+          nullable: true
+        partySize:
+          type: integer
+          nullable: true
+        name:
+          type: string
+          nullable: true
+        phone:
+          type: string
+          nullable: true
+          description: 10 dígitos
+    PublicSiteAssistantResponse:
+      type: object
+      required:
+      - data
+      - meta
+      properties:
+        data:
+          type: object
+          required:
+          - reply
+          - reservationDraft
+          properties:
+            reply:
+              type: string
+            reservationDraft:
+              allOf:
+              - $ref: '#/components/schemas/PublicReservationDraft'
+              nullable: true
+        meta:
+          $ref: '#/components/schemas/Meta'
     PublicContextResponse:
       type: object
       required:

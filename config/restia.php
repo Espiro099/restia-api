@@ -92,6 +92,22 @@ return [
         ],
     ],
 
+    // Sitio público de La Mesa (Decisiones_Public_Site). Límites por minuto y por IP.
+    'site' => [
+        'limits' => [
+            'reads' => 60,
+            'requests' => 3,
+            'lookups' => 10,
+            'assistant' => 8,
+        ],
+    ],
+
+    // Asistente del sitio (SITE-3) con la API de Claude. Sin llave, la página no lo muestra.
+    'assistant' => [
+        'key' => env('ANTHROPIC_API_KEY'),
+        'model' => env('RESTIA_ASSISTANT_MODEL', 'claude-haiku-5-5'),
+    ],
+
     // Fiscal (Decisiones_Fiscal). F-1: un conector por PAC; mientras no se elige proveedor, el simulado.
     'fiscal' => [
         'pac' => env('RESTIA_PAC', 'simulated'),

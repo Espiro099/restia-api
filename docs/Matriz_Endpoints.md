@@ -3,27 +3,27 @@
 **Estado:** generado desde `openapi/restia-api.yaml`
 **Fecha:** 2026-11-02
 
-Cubre las 217 operaciones del contrato. Se regenera con `tools/gen_matrices.py`; no se edita a mano.
+Cubre las 222 operaciones del contrato. Se regenera con `tools/gen_matrices.py`; no se edita a mano.
 
 ## 1. Criterios de la sección 36
 
 | # | Criterio | Operaciones que lo responden |
 |---|---|---|
-| 1 | ¿Quién puede invocarlo? | 217 de 217 |
-| 2 | ¿En qué sucursal? | 217 de 217 |
-| 3 | ¿Qué permiso necesita? | 217 de 217 |
-| 4 | ¿Qué estado requiere? | 217 de 217 |
-| 5 | ¿Qué payload recibe? | 196 de 217 (las otras 21 son escrituras sin cuerpo, porque la ruta basta) |
-| 6 | ¿Qué devuelve? | 217 de 217 |
-| 7 | ¿Qué errores puede producir? | 217 de 217 (`x-restia.conflictCodes` da los 409 exactos) |
-| 8 | ¿Es idempotente? | 217 de 217 |
-| 9 | ¿Requiere versión? | 216 de 217 (Orders por lotes lleva la versión en el cuerpo) |
-| 10 | ¿Qué ocurre con concurrencia? | 217 de 217 |
-| 11 | ¿Genera auditoría? | 217 de 217 |
-| 12 | ¿Genera outbox? | 217 de 217 |
-| 13 | ¿Es síncrono o asíncrono? | 217 de 217 |
-| 14 | ¿Qué datos son sensibles? | 217 de 217 |
-| 15 | ¿Qué cliente lo consume? | 217 de 217 |
+| 1 | ¿Quién puede invocarlo? | 222 de 222 |
+| 2 | ¿En qué sucursal? | 222 de 222 |
+| 3 | ¿Qué permiso necesita? | 222 de 222 |
+| 4 | ¿Qué estado requiere? | 222 de 222 |
+| 5 | ¿Qué payload recibe? | 201 de 222 (las otras 21 son escrituras sin cuerpo, porque la ruta basta) |
+| 6 | ¿Qué devuelve? | 222 de 222 |
+| 7 | ¿Qué errores puede producir? | 222 de 222 (`x-restia.conflictCodes` da los 409 exactos) |
+| 8 | ¿Es idempotente? | 222 de 222 |
+| 9 | ¿Requiere versión? | 221 de 222 (Orders por lotes lleva la versión en el cuerpo) |
+| 10 | ¿Qué ocurre con concurrencia? | 222 de 222 |
+| 11 | ¿Genera auditoría? | 222 de 222 |
+| 12 | ¿Genera outbox? | 222 de 222 |
+| 13 | ¿Es síncrono o asíncrono? | 222 de 222 |
+| 14 | ¿Qué datos son sensibles? | 222 de 222 |
+| 15 | ¿Qué cliente lo consume? | 222 de 222 |
 
 ## 2. Operaciones
 
@@ -306,6 +306,16 @@ Otros actores: identidades de servicio (`reservation-ai`, `printing-agent`) o vi
 | `GET /public/menu` | – | – | – | – | Visitante con token QR | Token QR válido | Sucursal activa; mesa distinta de INACTIVE | No | Sí, operación de lectura | No | No | Síncrono | QR público | – |
 | `GET /public/images/{imageId}` | – | – | – | – | Cualquiera con la URL | Ninguno; la URL sale del menú | La foto sigue asignada a su producto | No | Sí, operación de lectura | No | No | Síncrono | Web, Android, QR público | – |
 | `POST /public/presence` | – | – | – | – | Visitante con token QR | Token QR válido | Sucursal activa; mesa distinta de INACTIVE | No | Sí, en efecto | No | No | Síncrono | QR público | – |
+
+### Public Site (5)
+
+| Operación | ADMIN | MANAGER | WAITER | KITCHEN | Otros | Permiso | Estado requerido | If-Match | Idempotencia | Auditoría | Outbox | Modo | Clientes | Códigos 409 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| `GET /public/site/branches` | – | – | – | – | Visitante del sitio | Ninguno; sitio público con límite por IP | Sucursal activa | No | Sí, operación de lectura | No | No | Síncrono | Sitio web | – |
+| `GET /public/site/branches/{code}/availability` | – | – | – | – | Visitante del sitio | Ninguno; sitio público con límite por IP | Sucursal activa | No | Sí, operación de lectura | No | No | Síncrono | Sitio web | – |
+| `POST /public/site/reservation-requests` | – | – | – | – | Visitante del sitio | Ninguno; sitio público con límite por IP | Sucursal activa | No | Sí, con Idempotency-Key | Creación, con actor SYSTEM | reservation.created | Síncrono | Sitio web | IDEMPOTENCY_KEY_REUSED, RESERVATION_NOT_AVAILABLE, RESERVATION_ACTIVE_LIMIT_EXCEEDED |
+| `POST /public/site/reservation-requests/lookup` | – | – | – | – | Visitante del sitio | Ninguno; sitio público con límite por IP | Sucursal activa | No | Sí, operación de lectura | No | No | Síncrono | Sitio web | – |
+| `POST /public/site/assistant` | – | – | – | – | Visitante del sitio | Ninguno; sitio público con límite por IP | Sucursal activa | No | No; cada llamada genera una respuesta | No | No | Síncrono | Sitio web | – |
 
 ### Users (8)
 

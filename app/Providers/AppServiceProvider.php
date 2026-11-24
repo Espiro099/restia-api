@@ -7,6 +7,8 @@ use App\Fiscal\Pac\SimulatedPac;
 use App\Fiscal\Pac\SwSapienPac;
 use App\Mail\ResendTransport;
 use App\Models\PersonalAccessToken;
+use App\PublicSite\AssistantModel;
+use App\PublicSite\ClaudeAssistantModel;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\ServiceProvider;
 use Laravel\Sanctum\Sanctum;
@@ -25,6 +27,8 @@ class AppServiceProvider extends ServiceProvider
             'sw' => new SwSapienPac(config('services.sw')),
             default => throw new RuntimeException('RESTIA_PAC no corresponde a ningún conector.'),
         });
+        // SITE-3: el asistente del sitio con Claude; sin ANTHROPIC_API_KEY no se ofrece.
+        $this->app->singleton(AssistantModel::class, fn () => new ClaudeAssistantModel(config('restia.assistant.key'), config('restia.assistant.model')));
     }
 
     /**

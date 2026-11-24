@@ -197,6 +197,19 @@ def test_publico_solo_tres_operaciones():
     assert qr == {'getPublicContext', 'getPublicMenu', 'registerPublicPresence'}
 
 
+def test_sin_cuenta_solo_las_operaciones_abiertas():
+    # Decisiones_Public_Site: el sitio de La Mesa y las fotos del menú son las únicas operaciones sin cuenta ni token.
+    abiertas = {o['operationId'] for _, _, o in OPS if o.get('security') == [{}]}
+    assert abiertas == {'getProductImage', 'listPublicSiteBranches', 'getPublicSiteAvailability', 'createPublicReservationRequest',
+                        'lookupPublicReservationRequest', 'askPublicSiteAssistant'}
+
+
+@pytest.mark.parametrize('schema', ['PublicSiteBranch', 'PublicReservationRequest', 'PublicSiteAssistantResponse'])
+def test_sitio_sin_datos_internos(schema):
+    forbidden = {'id', 'branchId', 'tableId', 'sessionId', 'plannedTableIds', 'notes', 'createdBy', 'fiscal', 'cost', '_id'}
+    assert not props(schema) & forbidden
+
+
 def test_csd_nunca_se_devuelve():
     assert not props('FiscalIssuer') & {'privateKey', 'password', 'certificate'}
 

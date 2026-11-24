@@ -28,6 +28,9 @@ services:
         sync: false
       - key: MAIL_FROM_ADDRESS
         sync: false
+      # Asistente del sitio de La Mesa (Decisiones_Public_Site, SITE-3). Sin clave, el sitio funciona sin chat.
+      - key: ANTHROPIC_API_KEY
+        sync: false
 
   # Impresión, avisos, inventario, reportes, reservaciones y facturación avanzan aquí (routes/console.php).
   # - type: worker
