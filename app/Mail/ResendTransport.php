@@ -43,7 +43,11 @@ final class ResendTransport extends AbstractTransport
         ], fn ($v) => $v !== null && $v !== []);
 
         try {
-            $response = Http::withToken($this->key)->acceptJson()->timeout(15)->post(self::URL, $payload);
+            $request = Http::withToken($this->key)->acceptJson()->timeout(15);
+            if ($idempotency = $email->getHeaders()->get('Idempotency-Key')) {
+                $request->withHeader('Idempotency-Key', $idempotency->getBodyAsString());
+            }
+            $response = $request->post(self::URL, $payload);
         } catch (Throwable $e) {
             throw new TransportException('No se pudo conectar con Resend: '.$e->getMessage(), 0, $e);
         }

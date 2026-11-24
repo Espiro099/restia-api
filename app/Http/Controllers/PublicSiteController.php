@@ -6,6 +6,7 @@ use App\Exceptions\DomainConflict;
 use App\PublicSite\Assistant;
 use App\PublicSite\AssistantUnavailable;
 use App\PublicSite\Phone;
+use App\PublicSite\ReservationConfirmation;
 use App\PublicSite\Site;
 use App\Support\Api;
 use App\Support\Idempotency;
@@ -25,7 +26,10 @@ class PublicSiteController extends Controller
     {
         $this->limit($request, 'reads');
 
-        return Api::data(Site::branches(), meta: ['assistant' => $assistant->available()]);
+        return Api::data(Site::branches(), meta: [
+            'assistant' => $assistant->available(),
+            'reservationEmail' => ReservationConfirmation::available(),
+        ]);
     }
 
     public function availability(Request $request, string $code): JsonResponse
@@ -51,8 +55,12 @@ class PublicSiteController extends Controller
             'name' => ['required', 'string', 'min:2', 'max:120'],
             'phone' => ['required', 'string', 'max:20'],
             'notes' => ['sometimes', 'nullable', 'string', 'max:300'],
+            'email' => ['sometimes', 'nullable', 'string', 'email:rfc', 'max:254'],
         ]);
         $in['phone'] = Phone::e164($in['phone']) ?? throw ValidationException::withMessages(['phone' => 'Escribe un teléfono de 10 dígitos.']);
+        if (! empty($in['email']) && ! ReservationConfirmation::available()) {
+            throw ValidationException::withMessages(['email' => 'El correo de confirmación no está disponible. Borra el correo y vuelve a enviar la solicitud.']);
+        }
         $this->limit($request, 'requests');
         $branch = Site::branch($in['branchCode']);
         unset($in['branchCode']);
