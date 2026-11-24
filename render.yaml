@@ -28,7 +28,7 @@ services:
         sync: false
       - key: MAIL_FROM_ADDRESS
         sync: false
-      # Asistentes del menú QR (QR-14) y del sitio de La Mesa (SITE-3): llave de la API de Claude. Sin ella no se ofrecen.
+      # Asistente del sitio de La Mesa (SITE-3): llave de la API de Claude. Sin ella no se ofrece.
       - key: ANTHROPIC_API_KEY
         sync: false
       # Inicio de sesión con Google (Decisiones_Google_Login): ID de cliente OAuth Web. Vacío, está apagado.

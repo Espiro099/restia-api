@@ -193,9 +193,9 @@ def test_publico_sin_datos_internos(schema):
 
 
 def test_publico_solo_cuatro_operaciones():
-    # QR-1 más el asistente del menú (QR-14); ninguna toca la sesión, la cuenta ni los pedidos.
+    # QR-1: ninguna toca la sesión, la cuenta ni los pedidos (el asistente QR-14 se retiró; vive en el sitio, SITE-3).
     qr = {o['operationId'] for _, _, o in OPS if {'PublicQrToken': []} in o.get('security', [])}
-    assert qr == {'getPublicContext', 'getPublicMenu', 'registerPublicPresence', 'askPublicAssistant'}
+    assert qr == {'getPublicContext', 'getPublicMenu', 'registerPublicPresence'}
 
 
 def test_sin_cuenta_solo_las_operaciones_abiertas():
