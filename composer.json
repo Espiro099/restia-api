@@ -11,6 +11,7 @@
     "require": {
         "php": "^8.3",
         "anthropic-ai/sdk": "^1.13",
+        "firebase/php-jwt": "^7.0",
         "laravel/framework": "^13.17",
         "laravel/sanctum": "^4.3",
         "laravel/tinker": "^3.0",

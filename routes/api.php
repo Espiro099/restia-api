@@ -36,6 +36,7 @@ use Illuminate\Support\Facades\Route;
 Route::prefix('auth/mobile')->controller(MobileAuthController::class)->group(function () {
     Route::post('enroll', 'enroll');
     Route::post('login', 'login');
+    Route::post('google', 'google');
     Route::post('refresh', 'refresh');
 });
 
@@ -61,6 +62,9 @@ Route::get('public/images/{imageId}', [ProductImageController::class, 'show']);
 
 // Login Web (D-36, sección 6): cookie de sesión HttpOnly; el CSRF lo valida el middleware stateful de Sanctum.
 Route::post('auth/login', [WebAuthController::class, 'login']);
+// Inicio de sesión con Google (GOOGLE-1): solo personal ya dado de alta. Apagado sin GOOGLE_CLIENT_ID.
+Route::get('auth/google', [WebAuthController::class, 'googleConfig']);
+Route::post('auth/google', [WebAuthController::class, 'google']);
 
 // Contraseñas sin sesión (U-2): recuperación por correo y enlace de un solo uso.
 Route::post('auth/password/forgot', [UserController::class, 'forgotPassword']);

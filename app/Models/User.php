@@ -21,7 +21,7 @@ class User extends Document implements AuthenticatableContract
 
     protected $table = 'users';
 
-    protected $hidden = ['password_hash', 'normalized_email', 'remember_token'];
+    protected $hidden = ['password_hash', 'normalized_email', 'remember_token', 'google_sub'];
 
     public function getAuthPasswordName()
     {

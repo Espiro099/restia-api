@@ -116,6 +116,21 @@ final class MobileAuth
             Log::info('Login móvil rechazado', ['device' => $device->uuid, 'ip' => $ip]);
             throw new DomainConflict('AUTHENTICATION_INVALID');
         }
+
+        return self::start($user, $device, $ip, 'PASSWORD');
+    }
+
+    /** GOOGLE-1: mismo login, pero la identidad la prueba un token de Google en lugar de la contraseña. */
+    public static function loginWithGoogle(GoogleSignIn $google, string $idToken, string $deviceUuid, string $credential, string $ip): array
+    {
+        $device = self::deviceWithCredential($deviceUuid, $credential);
+
+        return self::start($google->user($idToken, $ip), $device, $ip, 'GOOGLE');
+    }
+
+    /** @return array<string, mixed> */
+    private static function start(User $user, Device $device, string $ip, string $method): array
+    {
         // El usuario ya probó quién es: ahora sí se le dice que el dispositivo no sirve.
         if (! $device->isActive()) {
             throw new DomainConflict('DEVICE_BLOCKED');
@@ -134,7 +149,7 @@ final class MobileAuth
         // entonces ve la sesión del otro, que reemplaza (CRED-10).
         for ($attempt = 1; ; $attempt++) {
             try {
-                return Mongo::transaction(fn () => self::openSession($user, $device, $ip));
+                return Mongo::transaction(fn () => self::openSession($user, $device, $ip, $method));
             } catch (Throwable $e) {
                 if ($attempt >= 3 || ! Mongo::isDuplicateKey($e)) {
                     throw $e;
@@ -144,7 +159,7 @@ final class MobileAuth
     }
 
     /** @return array<string, mixed> */
-    private static function openSession(User $user, Device $device, string $ip): array
+    private static function openSession(User $user, Device $device, string $ip, string $method): array
     {
         $now = now();
         $userId = new ObjectId($user->getKey());
@@ -187,7 +202,7 @@ final class MobileAuth
         ]);
 
         Device::query()->where('_id', $deviceId)->update(['last_seen_at' => $now, 'updated_at' => $now]);
-        Audit::record('auth.login', 'auth_session', $session->getKey(), $branchId, $userId, changes: ['clientType' => AuthSession::ANDROID]);
+        Audit::record('auth.login', 'auth_session', $session->getKey(), $branchId, $userId, changes: ['clientType' => AuthSession::ANDROID, 'method' => $method]);
 
         return self::tokenData($user, $session, $refresh);
     }

@@ -36,10 +36,22 @@ final class WebAuth
             throw new DomainConflict('AUTHENTICATION_INVALID');
         }
 
-        return [$user, Mongo::transaction(fn () => self::openSession($user, $ip))];
+        return [$user, Mongo::transaction(fn () => self::openSession($user, $ip, 'PASSWORD'))];
     }
 
-    private static function openSession(User $user, string $ip): AuthSession
+    /**
+     * GOOGLE-1: la identidad la prueba un token de Google en lugar de la contraseña.
+     *
+     * @return array{0: User, 1: AuthSession}
+     */
+    public static function loginWithGoogle(GoogleSignIn $google, string $idToken, string $ip): array
+    {
+        $user = $google->user($idToken, $ip);
+
+        return [$user, Mongo::transaction(fn () => self::openSession($user, $ip, 'GOOGLE'))];
+    }
+
+    private static function openSession(User $user, string $ip, string $method): AuthSession
     {
         $now = now();
         $userId = new ObjectId($user->getKey());
@@ -67,7 +79,7 @@ final class WebAuth
             'revocation_reason' => null,
             'purge_at' => Sessions::purgeAt($absolute),
         ]);
-        Audit::record('auth.login', 'auth_session', $session->getKey(), null, $userId, changes: ['clientType' => AuthSession::WEB]);
+        Audit::record('auth.login', 'auth_session', $session->getKey(), null, $userId, changes: ['clientType' => AuthSession::WEB, 'method' => $method]);
 
         return $session;
     }

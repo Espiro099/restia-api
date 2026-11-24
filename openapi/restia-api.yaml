@@ -152,6 +152,108 @@ paths:
           $ref: '#/components/responses/TooManyAttempts'
         '500':
           $ref: '#/components/responses/InternalError'
+  /auth/google:
+    get:
+      tags:
+      - Authentication
+      operationId: getGoogleLoginConfig
+      summary: Dice si el inicio de sesión con Google está encendido
+      description: El panel y la app lo consultan para mostrar el botón y saber con qué ID de cliente pedir el
+        token a Google. Sin GOOGLE_CLIENT_ID, enabled es false.
+      security: []
+      x-restia:
+        actors:
+        - Cualquiera
+        branch: Global
+        permission: Ninguno
+        requiredState: Ninguno
+        idempotent: Sí, operación de lectura
+        requiresVersion: false
+        concurrency: No aplica
+        audit: false
+        outbox: false
+        mode: Síncrono
+        sensitive: Ninguno; el ID de cliente es público
+        clients:
+        - Web
+        - Android
+      parameters:
+      - $ref: '#/components/parameters/RequestId'
+      responses:
+        '200':
+          description: Configuración
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/XRequestId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GoogleLoginConfigResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    post:
+      tags:
+      - Authentication
+      operationId: loginWebGoogle
+      summary: Inicia una sesión Web con Google
+      description: Igual que loginWeb, pero la identidad la prueba el ID token de Google Identity Services.
+        No crea cuentas; solo entra personal ACTIVE con el mismo correo verificado. La primera vez se liga
+        la cuenta de Google al usuario y desde entonces solo esa entra (GOOGLE-3). 404 si está apagado.
+      security: []
+      x-restia:
+        actors:
+        - Empleado
+        branch: Global; las sucursales se obtienen de sus membresías
+        permission: Usuario activo con el correo verificado por Google
+        requiredState: Usuario activo
+        idempotent: false
+        requiresVersion: false
+        concurrency: Si excede 3 sesiones Web, se revoca la más antigua
+        audit: Login correcto y la primera vez que se liga la cuenta de Google
+        outbox: false
+        mode: Síncrono
+        sensitive: ID token de Google y cookie de sesión
+        clients:
+        - Web
+      parameters:
+      - $ref: '#/components/parameters/RequestId'
+      - $ref: '#/components/parameters/XsrfTokenRequired'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GoogleWebLoginRequest'
+      responses:
+        '200':
+          description: Sesión iniciada
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/XRequestId'
+            Set-Cookie:
+              schema:
+                type: string
+              description: laravel_session con HttpOnly, Secure y SameSite=Lax
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthMeResponse'
+        '401':
+          $ref: '#/components/responses/InvalidCredentials'
+        '403':
+          $ref: '#/components/responses/CsrfMismatch'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        '429':
+          $ref: '#/components/responses/TooManyAttempts'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceBusy'
   /auth/mobile/enroll:
     post:
       tags:
@@ -261,6 +363,67 @@ paths:
           $ref: '#/components/responses/InvalidCredentials'
         '403':
           $ref: '#/components/responses/DeviceOrBranchDenied'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        '429':
+          $ref: '#/components/responses/TooManyAttempts'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceBusy'
+  /auth/mobile/google:
+    post:
+      tags:
+      - Authentication
+      operationId: loginMobileGoogle
+      summary: Inicia sesión con Google en un dispositivo registrado
+      description: Igual que loginMobile, pero la identidad la prueba el ID token de Credential Manager
+        (pedido con el ID de cliente Web como serverClientId). Mismas reglas que loginWebGoogle.
+      security: []
+      x-restia:
+        actors:
+        - Empleado
+        branch: La del dispositivo; exige membresía activa
+        permission: Membresía activa en la sucursal del dispositivo
+        requiredState: Usuario activo y dispositivo ACTIVE
+        idempotent: false
+        requiresVersion: false
+        concurrency: 'Índice único de sesión activa por dispositivo; la anterior se revoca. Si excede
+          2 sesiones Android, se revoca la más antigua.
+
+          '
+        audit: Login correcto, sesiones revocadas y la primera vez que se liga la cuenta de Google
+        outbox: false
+        mode: Síncrono, en transacción
+        sensitive: ID token de Google, credencial del dispositivo y tokens
+        clients:
+        - Android
+      parameters:
+      - $ref: '#/components/parameters/RequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GoogleMobileLoginRequest'
+      responses:
+        '201':
+          description: Sesión creada
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/XRequestId'
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MobileTokenResponse'
+        '401':
+          $ref: '#/components/responses/InvalidCredentials'
+        '403':
+          $ref: '#/components/responses/DeviceOrBranchDenied'
+        '404':
+          $ref: '#/components/responses/NotFound'
         '422':
           $ref: '#/components/responses/ValidationFailed'
         '429':
@@ -15521,6 +15684,57 @@ components:
           writeOnly: true
           minLength: 32
           maxLength: 256
+    GoogleWebLoginRequest:
+      type: object
+      required:
+      - credential
+      additionalProperties: false
+      properties:
+        credential:
+          type: string
+          minLength: 16
+          maxLength: 4096
+          description: ID token (JWT) que entrega Google Identity Services
+    GoogleMobileLoginRequest:
+      type: object
+      required:
+      - idToken
+      - deviceUuid
+      - deviceCredential
+      additionalProperties: false
+      properties:
+        idToken:
+          type: string
+          minLength: 16
+          maxLength: 4096
+          description: ID token (JWT) que entrega Credential Manager
+        deviceUuid:
+          type: string
+          format: uuid
+        deviceCredential:
+          type: string
+          minLength: 32
+          maxLength: 256
+    GoogleLoginConfigResponse:
+      type: object
+      required:
+      - data
+      - meta
+      properties:
+        data:
+          type: object
+          required:
+          - enabled
+          - clientId
+          properties:
+            enabled:
+              type: boolean
+            clientId:
+              type: string
+              nullable: true
+              description: ID de cliente OAuth Web; la app lo usa como serverClientId
+        meta:
+          $ref: '#/components/schemas/Meta'
     MobileRefreshRequest:
       type: object
       required:

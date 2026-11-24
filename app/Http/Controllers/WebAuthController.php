@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Exceptions\DomainConflict;
+use App\Identity\GoogleSignIn;
 use App\Identity\WebAuth;
 use App\Models\User;
 use App\Support\Api;
@@ -37,6 +38,30 @@ class WebAuthController extends Controller
         [$user, $session] = WebAuth::login($email, $in['password'], $ip);
 
         // Se regenera el ID de sesión para evitar la fijación de sesión, y también el token CSRF.
+        $request->session()->regenerate();
+        $request->session()->put(WebAuth::SESSION_KEY, $session->uuid);
+
+        return Api::data(AccountController::meData($user, $session), noStore: true);
+    }
+
+    /** GET /auth/google (getGoogleLoginConfig): si está encendido y con qué ID de cliente (GOOGLE-1). */
+    public function googleConfig(GoogleSignIn $google): JsonResponse
+    {
+        return Api::data(['enabled' => $google->enabled(), 'clientId' => $google->clientId()]);
+    }
+
+    /** POST /auth/google (loginWebGoogle): como /auth/login, con el ID token de Google Identity Services. */
+    public function google(Request $request, GoogleSignIn $google): JsonResponse
+    {
+        if (! $request->hasSession()) {
+            throw new DomainConflict('CSRF_TOKEN_MISMATCH');
+        }
+        $in = Api::body($request, ['credential' => ['required', 'string', 'min:16', 'max:4096']]);
+        $ip = (string) $request->ip();
+        Throttle::hit('login-ip|'.$ip, config('restia.auth.limits.login_per_ip'));
+
+        [$user, $session] = WebAuth::loginWithGoogle($google, $in['credential'], $ip);
+
         $request->session()->regenerate();
         $request->session()->put(WebAuth::SESSION_KEY, $session->uuid);
 
