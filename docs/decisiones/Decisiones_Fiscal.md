@@ -1,6 +1,6 @@
 # Módulo Fiscal: decisiones del contrato
 
-**Estado:** APROBADAS (F-1 a F-15), sujetas a validación contable
+**Estado:** APROBADAS (F-1 a F-16), sujetas a validación contable
 **Fecha:** 2026-11-02
 **Contrato:** `openapi/restia-api.yaml`
 
@@ -27,6 +27,7 @@ Se conserva lo definido en D-15 y la sección 13 del documento maestro: ciclo co
 | **F-13** | Emisores | Catálogo global con RFC y régimen; cada sucursal apunta a uno | Un emisor por sucursal, sin compartir |
 | **F-14** | Archivos | XML y PDF en almacenamiento de objetos, descarga solo por la API | Guardarlos en MongoDB |
 | **F-15** | Permisos | Matriz de la sección 6 | Solo gerentes |
+| **F-16** | Alcance de los emisores | Un ADMIN solo ve, cambia y asigna los emisores que no usa ninguna sucursal fuera de las que administra; los demás responden 404. Así no toca el CSD ni factura con el RFC de otra sucursal | Todo ADMIN ve todo el catálogo |
 
 ## 2. Máquinas de estados
 
