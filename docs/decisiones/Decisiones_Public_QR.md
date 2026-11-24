@@ -24,6 +24,7 @@ El documento no dice qué hace el cliente en esa página. Esa es la decisión de
 | **QR-10** | Autofacturación (pendiente de Fiscal) | Fuera de v1; las facturas las genera el personal | Portal público de facturación |
 | **QR-11** | Despliegue | Dominio distinto al del panel, sin cookies, `Referrer-Policy: no-referrer`, `noindex` y sin scripts de terceros | Mismo dominio del panel |
 | **QR-12** | Permisos del personal | `ADMIN` y `MANAGER` consultan y rotan, solo en Web | Solo `ADMIN` |
+| **QR-13** | Datos de la sucursal (fase 4) | El contexto agrega teléfono, dirección sin país y un enlace "Cómo llegar" de Google Maps (`/maps/search/?api=1`), que no necesita llave ni carga scripts en la página | Mapa incrustado con llave de Google Maps |
 
 ## 2. Por qué tan limitado (QR-1, QR-2)
 
