@@ -4,6 +4,11 @@ Backend de Restia: API REST en Laravel 13 con MongoDB. Es la fuente única del c
 
 **Estado:** el contrato y las decisiones están aprobados. El backend tiene la base técnica; aún no tiene módulos ni endpoints de negocio.
 
+## Despliegue
+
+- **Staging:** `render.yaml` y [docs/Despliegue_Staging.md](docs/Despliegue_Staging.md).
+- **Producción:** `deploy/render/produccion.yaml` y [docs/Despliegue_Produccion.md](docs/Despliegue_Produccion.md) (dominio, Atlas con respaldos, worker, Google, SW Sapien y app).
+
 ## Entorno local
 
 Requisitos:

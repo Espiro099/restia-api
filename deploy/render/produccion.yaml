@@ -1,0 +1,137 @@
+# Producción de Restia en Render (docs/Despliegue_Produccion.md). Plantilla: al crear el Blueprint, en
+# "Blueprint Path" se indica deploy/render/produccion.yaml. Staging sigue en el render.yaml de la raíz.
+#
+# Diferencias con staging: plan de pago (no se duerme), worker aparte para el programador de tareas,
+# APP_ENV=production (sin restia:demo ni PAC simulado), PAC de SW Sapien en producción, migraciones antes de
+# cada despliegue y despliegue manual (autoDeploy: false) después de revisar staging.
+# Los valores con `sync: false` son secretos o dependen del dominio: Render los pide al crear el Blueprint.
+services:
+  - type: web
+    name: restia-api
+    runtime: docker
+    plan: starter
+    # La misma región que el clúster de Atlas (ver la guía).
+    region: virginia
+    branch: main
+    autoDeploy: false
+    healthCheckPath: /up
+    # Aplica las migraciones pendientes antes de poner la versión nueva.
+    preDeployCommand: php artisan migrate --force
+    envVars:
+      - fromGroup: restia-produccion
+      - key: PORT
+        value: "8080"
+      # https://api.<dominio>: la usa la app Android.
+      - key: APP_URL
+        sync: false
+      - key: APP_KEY
+        sync: false
+      - key: MONGODB_URI
+        sync: false
+      - key: RESTIA_REFRESH_KEY
+        sync: false
+      # Sitio y panel publicados (restia-web): https://<dominio>, sin barra final.
+      - key: RESTIA_CORS_ORIGINS
+        sync: false
+      # Solo el host del sitio, sin https:// (por ejemplo lamesa.mx,www.lamesa.mx).
+      - key: SANCTUM_STATEFUL_DOMAINS
+        sync: false
+      - key: RESTIA_WEB_URL
+        sync: false
+      - key: RESTIA_PUBLIC_URL
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: MAIL_FROM_ADDRESS
+        sync: false
+      # SW Sapien producción: token del portal, o usuario y contraseña.
+      - key: SW_TOKEN
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+
+  # Impresión, avisos, inventario, reportes, vencimiento de reservas y facturación (routes/console.php).
+  - type: worker
+    name: restia-tareas
+    runtime: docker
+    plan: starter
+    region: virginia
+    branch: main
+    autoDeploy: false
+    dockerCommand: php artisan schedule:work
+    envVars:
+      - fromGroup: restia-produccion
+      # Los mismos valores que en restia-api. APP_KEY distinto dejaría ilegibles los datos cifrados.
+      - key: APP_URL
+        sync: false
+      - key: APP_KEY
+        sync: false
+      - key: MONGODB_URI
+        sync: false
+      - key: RESTIA_WEB_URL
+        sync: false
+      - key: RESTIA_PUBLIC_URL
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: MAIL_FROM_ADDRESS
+        sync: false
+      - key: SW_TOKEN
+        sync: false
+
+envVarGroups:
+  - name: restia-produccion
+    envVars:
+      - key: APP_NAME
+        value: Restia
+      - key: APP_ENV
+        value: production
+      - key: APP_DEBUG
+        value: "false"
+      - key: APP_LOCALE
+        value: es
+      - key: LOG_CHANNEL
+        value: stderr
+      - key: LOG_LEVEL
+        value: warning
+      - key: DB_CONNECTION
+        value: mongodb
+      - key: MONGODB_DATABASE
+        value: restia
+      # Una sola instancia web: sesiones y caché en disco. Con más de una, pasarlas a MongoDB o Redis.
+      - key: SESSION_DRIVER
+        value: file
+      - key: SESSION_ENCRYPT
+        value: "true"
+      - key: SESSION_SECURE_COOKIE
+        value: "true"
+      - key: SESSION_SAME_SITE
+        value: lax
+      - key: CACHE_STORE
+        value: file
+      - key: QUEUE_CONNECTION
+        value: sync
+      - key: MAIL_MAILER
+        value: resend
+      - key: MAIL_FROM_NAME
+        value: Restia
+      - key: BCRYPT_ROUNDS
+        value: "12"
+      - key: RESTIA_FORCE_HTTPS
+        value: "true"
+      # Render termina el TLS en su proxy, cuyas direcciones no son fijas.
+      - key: RESTIA_TRUSTED_PROXIES
+        value: "*"
+      - key: RESTIA_HSTS_SECONDS
+        value: "31536000"
+      - key: RESTIA_PAC
+        value: sw
+      - key: SW_URL
+        value: https://services.sw.com.mx
+      - key: RESTIA_ASSISTANT_MODEL
+        value: claude-haiku-5-5
+      # El worker corre el programador; el servicio web no.
+      - key: RESTIA_RUN_SCHEDULER
+        value: "false"
