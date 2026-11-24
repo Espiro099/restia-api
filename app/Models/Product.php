@@ -22,5 +22,6 @@ class Product extends Document
         'branch_id' => ObjectId::class,
         'price' => 'decimal:2',
         'display_order' => 'integer',
+        'recommended' => 'boolean',
     ];
 }

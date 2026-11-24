@@ -89,11 +89,14 @@ final class PublicQr
         return implode(', ', array_filter([$a['line1'], $a['line2'] ?? null, $place ?: null, $a['state'] ?? null]));
     }
 
-    /** QR-7: el menú interno sin códigos, descripciones internas ni la sucursal. Los agotados se ven marcados. */
+    /**
+     * QR-7: el menú interno sin códigos ni la sucursal. Los agotados se ven marcados. QR-15: con la descripción
+     * del platillo (la escribe el gerente para el cliente) y la recomendación del día (M-13).
+     */
     public static function menu(Branch $branch): array
     {
         $menu = Menu::build($branch);
-        $fields = ['id', 'name', 'category', 'displayOrder', 'price', 'availability', 'modifierIds', 'imageUrl'];
+        $fields = ['id', 'name', 'description', 'category', 'displayOrder', 'recommended', 'price', 'availability', 'modifierIds', 'imageUrl'];
 
         return [
             'menuVersion' => $menu['menuVersion'],

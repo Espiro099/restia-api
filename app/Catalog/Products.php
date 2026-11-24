@@ -23,6 +23,7 @@ final class Products
 {
     private const FIELDS = [
         'name' => 'name', 'description' => 'description', 'category' => 'category', 'displayOrder' => 'display_order',
+        'recommended' => 'recommended',
     ];
 
     /**
@@ -49,6 +50,7 @@ final class Products
             'description' => $p->description,
             'category' => $p->category,
             'displayOrder' => (int) $p->display_order,
+            'recommended' => (bool) $p->recommended,
             'price' => Floor::money($p->price),
             'status' => $p->status,
             'availability' => $p->availability,
@@ -71,7 +73,8 @@ final class Products
 
         return Catalog::create($branch, $actor, 'product', 'CATALOG_CODE_TAKEN', fn (ObjectId $branchId) => Product::query()->create([
             'branch_id' => $branchId, 'code' => $in['code'], 'name' => $in['name'], 'description' => $in['description'] ?? null,
-            'category' => $in['category'], 'display_order' => (int) ($in['displayOrder'] ?? 0), 'price' => self::price($in['price']),
+            'category' => $in['category'], 'display_order' => (int) ($in['displayOrder'] ?? 0), 'recommended' => (bool) ($in['recommended'] ?? false),
+            'price' => self::price($in['price']),
             'status' => Product::INACTIVE, 'availability' => 'AVAILABLE', 'modifier_ids' => $modifierIds,
             'current_recipe_version' => null, 'fiscal' => self::fiscalIn($in['fiscal']), 'image_uuid' => null,
         ]));

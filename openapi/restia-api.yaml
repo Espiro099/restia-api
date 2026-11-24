@@ -17033,6 +17033,7 @@ components:
       - name
       - category
       - displayOrder
+      - recommended
       - price
       - status
       - availability
@@ -17058,6 +17059,9 @@ components:
         displayOrder:
           type: integer
           minimum: 0
+        recommended:
+          type: boolean
+          description: Recomendación del día en el menú del QR (M-13).
         price:
           $ref: '#/components/schemas/Money'
         status:
@@ -17121,6 +17125,9 @@ components:
           type: integer
           minimum: 0
           maximum: 100000
+        recommended:
+          type: boolean
+          description: Recomendación del día en el menú del QR (M-13).
         price:
           allOf:
           - $ref: '#/components/schemas/MoneyNonNegative'
@@ -17154,6 +17161,9 @@ components:
           type: integer
           minimum: 0
           maximum: 100000
+        recommended:
+          type: boolean
+          description: Recomendación del día en el menú del QR (M-13).
         price:
           $ref: '#/components/schemas/MoneyNonNegative'
         modifierIds:
@@ -17271,6 +17281,7 @@ components:
       - name
       - category
       - displayOrder
+      - recommended
       - price
       - availability
       - modifierIds
@@ -17292,6 +17303,9 @@ components:
         displayOrder:
           type: integer
           minimum: 0
+        recommended:
+          type: boolean
+          description: Recomendación del día en el menú del QR (M-13).
         price:
           $ref: '#/components/schemas/Money'
         availability:
@@ -20879,6 +20893,8 @@ components:
       - name
       - category
       - displayOrder
+      - recommended
+      - description
       - price
       - availability
       - modifierIds
@@ -20895,6 +20911,13 @@ components:
         displayOrder:
           type: integer
           minimum: 0
+        recommended:
+          type: boolean
+          description: Recomendación del día en el menú del QR (M-13).
+        description:
+          type: string
+          nullable: true
+          description: Lo que el gerente escribió del platillo para el cliente (QR-15).
         price:
           allOf:
           - $ref: '#/components/schemas/Money'

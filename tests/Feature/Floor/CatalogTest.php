@@ -96,6 +96,13 @@ class CatalogTest extends FloorTestCase
         $this->as('gerente', 'PATCH', $path, ['name' => 'Tacos'], $this->v(1))->assertStatus(409)->assertJsonPath('error.code', 'VERSION_CONFLICT');
         $this->as('mesero', 'PATCH', $path, ['name' => 'Tacos'], $this->v(2))->assertStatus(403);
         $this->as('mesero', 'GET', $path)->assertOk()->assertHeader('ETag', '"2"')->assertJsonPath('data.routes.0.stationId', $this->station('COCINA'));
+
+        // M-13: la recomendación del día es un booleano estricto y sube la versión del menú.
+        $this->assertFalse($this->as('gerente', 'GET', $path)->json('data.recommended'));
+        $this->as('gerente', 'PATCH', $path, ['recommended' => 'si'], $this->v(2))->assertStatus(422);
+        $menu = $this->menuVersion();
+        $this->as('gerente', 'PATCH', $path, ['recommended' => true], $this->v(2))->assertOk()->assertJsonPath('data.recommended', true);
+        $this->assertSame($menu + 1, $this->menuVersion());
     }
 
     public function test_agotar_un_producto_no_pide_version(): void
