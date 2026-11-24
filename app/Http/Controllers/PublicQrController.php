@@ -2,25 +2,67 @@
 
 namespace App\Http\Controllers;
 
+use App\Exceptions\DomainConflict;
 use App\Floor\Menu;
 use App\Http\Middleware\AuthorizeBranch;
 use App\Http\Middleware\PublicQrToken;
 use App\Models\RestaurantTable;
+use App\PublicQr\Assistant;
+use App\PublicQr\AssistantUnavailable;
 use App\PublicQr\PublicQr;
 use App\Support\Api;
 use App\Support\Floor;
 use App\Support\Throttle;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 /** Public QR: página del cliente (sin cuenta) y consulta y rotación del token por el personal (QR-12). */
 class PublicQrController extends Controller
 {
-    public function context(Request $request): JsonResponse
+    public function context(Request $request, Assistant $assistant): JsonResponse
     {
-        return Api::data(PublicQr::context($request->attributes->get(PublicQrToken::TABLE), $request->attributes->get(PublicQrToken::BRANCH)));
+        $context = PublicQr::context($request->attributes->get(PublicQrToken::TABLE), $request->attributes->get(PublicQrToken::BRANCH));
+
+        return Api::data($context + ['assistant' => $assistant->available()]);
+    }
+
+    /** QR-14: una pregunta al asistente del menú, con la conversación completa que guarda la página. */
+    public function assistant(Request $request, Assistant $assistant): JsonResponse
+    {
+        $table = $request->attributes->get(PublicQrToken::TABLE);
+        $in = Api::body($request, [
+            'messages' => ['required', 'array', 'list', 'min:1', 'max:'.Assistant::MAX_TURNS],
+            'messages.*' => ['array:role,content'],
+            'messages.*.role' => ['required', 'string', 'in:user,assistant'],
+            'messages.*.content' => ['required', 'string', 'min:1', 'max:'.Assistant::MAX_CHARS],
+        ]);
+        $messages = array_map(fn ($m) => ['role' => $m['role'], 'content' => trim($m['content'])], $in['messages']);
+        // La conversación alterna y empieza y termina con el cliente.
+        foreach ($messages as $i => $m) {
+            if ($m['role'] !== ($i % 2 === 0 ? 'user' : 'assistant') || $m['content'] === '') {
+                throw ValidationException::withMessages(["messages.$i.role" => 'La conversación debe alternar cliente y asistente, empezando por el cliente.']);
+            }
+        }
+        if (end($messages)['role'] !== 'user') {
+            throw ValidationException::withMessages(['messages' => 'El último mensaje debe ser del cliente.']);
+        }
+        // Solo cuentan las preguntas válidas: son las que llegan a la API de Claude.
+        $limits = config('restia.public.limits');
+        Throttle::hit('qr-assistant-ip|'.$request->ip(), $limits['assistant_per_ip']);
+        Throttle::hit('qr-assistant|'.$table->getKey(), $limits['assistant_per_token']);
+        if (! $assistant->available()) {
+            throw new DomainConflict('SERVICE_BUSY');
+        }
+        try {
+            $reply = $assistant->answer($request->attributes->get(PublicQrToken::BRANCH), $table, $messages);
+        } catch (AssistantUnavailable) {
+            throw new DomainConflict('SERVICE_BUSY');
+        }
+
+        return Api::data(['reply' => $reply]);
     }
 
     /** ETag por versión del menú: no depende de la mesa (QR-7). */

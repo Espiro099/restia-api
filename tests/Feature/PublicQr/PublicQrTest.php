@@ -39,7 +39,7 @@ class PublicQrTest extends FloorTestCase
         $context = $this->visitor('GET', 'context', $token)->assertOk()
             ->assertHeader('Referrer-Policy', 'no-referrer')->assertHeader('X-Robots-Tag', 'noindex, nofollow')->json('data');
         $this->assertSame(['restaurantName' => $this->branch->name, 'tableNumber' => 1, 'currency' => 'MXN', 'timezone' => 'America/Mexico_City',
-            'phone' => null, 'address' => null, 'mapsUrl' => null], $context);
+            'phone' => null, 'address' => null, 'mapsUrl' => null, 'assistant' => false], $context);
 
         $menu = $this->visitor('GET', 'menu', $token)->assertOk()->assertHeader('ETag');
         $products = $menu->json('data.products');
