@@ -11994,7 +11994,7 @@ paths:
       summary: Envía una solicitud de reserva
       description: Crea una reserva PENDING con source WEB y devuelve su folio. No aparta mesas (R-1) y vence
         si nadie la confirma (R-7); el personal la confirma desde la app o el panel. Máximo dos activas por
-        teléfono y sucursal, y tres solicitudes por minuto por IP. Si el correo está disponible, se puede indicar para recibir la confirmación del personal.
+        teléfono y sucursal, y tres solicitudes por minuto por IP. Si el correo está disponible, se puede indicar para recibir el folio al enviar y la confirmación del personal.
       security:
       - {}
       x-restia:
@@ -18734,6 +18734,10 @@ components:
           type: string
           format: uuid
           nullable: true
+        sourceProductName:
+          type: string
+          nullable: true
+          description: Nombre histórico del platillo de la comanda que originó el movimiento
         recipeVersion:
           type: integer
           nullable: true
@@ -21193,7 +21197,7 @@ components:
               description: El asistente del sitio está disponible
             reservationEmail:
               type: boolean
-              description: Se admite correo para confirmar reservas web
+              description: Se admite correo para recibir el folio y la confirmación de reservas web
     PublicSiteAvailabilityResponse:
       type: object
       required:
@@ -21260,7 +21264,7 @@ components:
           format: email
           nullable: true
           maxLength: 254
-          description: Opcional cuando reservationEmail está habilitado. Se utiliza para enviar la confirmación.
+          description: Opcional en la API cuando reservationEmail está habilitado. Se utiliza para enviar el folio y la confirmación.
     PublicReservationLookupRequest:
       type: object
       required:

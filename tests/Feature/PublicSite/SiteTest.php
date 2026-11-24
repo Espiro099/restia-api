@@ -11,7 +11,7 @@ use App\PublicSite\AssistantReply;
 use App\PublicSite\AssistantUnavailable;
 use App\PublicSite\ClaudeAssistantModel;
 use App\PublicSite\Phone;
-use App\PublicSite\ReservationConfirmation;
+use App\PublicSite\ReservationEmails;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -131,7 +131,7 @@ class SiteTest extends FloorTestCase
         $this->assertSame(0, $this->as('mesero', 'GET', 'notifications?perPage=10')->json('meta.unreadCount'));
     }
 
-    public function test_solo_envia_correo_si_el_personal_confirma_una_solicitud_con_correo(): void
+    public function test_envia_el_folio_al_pedir_y_otro_correo_al_confirmar(): void
     {
         $email = 'cliente@example.com';
         $this->request(['email' => $email])->assertUnprocessable();
@@ -148,15 +148,21 @@ class SiteTest extends FloorTestCase
         $folio = $created->json('data.folio');
         $r = Reservation::query()->where('confirmation_code', $folio)->firstOrFail();
 
-        $this->assertSame(0, ReservationConfirmation::sendPending());
-        Http::assertNothingSent();
+        $this->assertSame(1, ReservationEmails::sendPending());
+        $this->assertSame(0, ReservationEmails::sendPending());
+        Http::assertSentCount(1);
+        Http::assertSent(fn ($request) => $request['to'] === [$email]
+            && $request['subject'] === 'Recibimos tu solicitud en La Mesa'
+            && str_contains($request['text'], $folio)
+            && $request->hasHeader('Idempotency-Key'));
 
         $this->as('gerente', 'POST', "reservations/{$r->uuid}/confirm", [],
             ['If-Match' => '"'.$r->version.'"'] + $this->key())->assertOk()->assertJsonPath('data.status', 'CONFIRMED');
-        $this->assertSame(1, ReservationConfirmation::sendPending());
-        $this->assertSame(0, ReservationConfirmation::sendPending());
-        Http::assertSentCount(1);
+        $this->assertSame(1, ReservationEmails::sendPending());
+        $this->assertSame(0, ReservationEmails::sendPending());
+        Http::assertSentCount(2);
         Http::assertSent(fn ($request) => $request['to'] === [$email]
+            && $request['subject'] === 'Tu reserva en La Mesa está confirmada'
             && str_contains($request['text'], $folio)
             && $request->hasHeader('Idempotency-Key'));
     }

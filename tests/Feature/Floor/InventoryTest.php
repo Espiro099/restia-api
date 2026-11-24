@@ -144,6 +144,9 @@ class InventoryTest extends FloorTestCase
         $list = $this->as('gerente', 'GET', "inventory-movements?ingredientId=$tortilla&type=CONSUMPTION")->assertOk()->assertJsonCount(1, 'data')->json('data.0');
         $this->assertSame(['-3', 'order_unit', $tacos[0]['id'], 1, false, false], [$list['quantity'], $list['sourceType'], $list['sourceId'], $list['recipeVersion'], $list['override'], $list['selfApproved']]);
         $this->assertSame($this->staff['cocina']['user']->uuid, $list['createdBy']);
+        $this->assertSame('Tacos al pastor', $list['sourceProductName']);
+        $this->as('cocina', 'GET', "inventory-movements?ingredientId=$tortilla&type=CONSUMPTION")
+            ->assertOk()->assertJsonPath('data.0.sourceProductName', 'Tacos al pastor');
         $this->as('mesero', 'GET', 'inventory-movements')->assertStatus(403);
 
         // Reconstruir desde los movimientos da lo mismo.

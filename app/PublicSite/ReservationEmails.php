@@ -12,9 +12,13 @@ use Illuminate\Support\Facades\Mail;
 use MongoDB\BSON\UTCDateTime;
 use Symfony\Component\Mailer\Exception\TransportExceptionInterface;
 
-final class ReservationConfirmation
+final class ReservationEmails
 {
     private const CONSUMER = 'reservation-confirmation-email';
+
+    private const RECEIVED = 'reservation.created';
+
+    private const CONFIRMED = 'reservation.confirmed';
 
     public static function available(): bool
     {
@@ -30,12 +34,14 @@ final class ReservationConfirmation
             return 0;
         }
 
-        $events = DB::connection('mongodb')->table('outbox_events')->where('type', 'reservation.confirmed')
+        $events = DB::connection('mongodb')->table('outbox_events')
+            ->where(fn (Builder $q) => $q->where('type', self::CONFIRMED)
+                ->orWhere(fn (Builder $created) => $created->where('type', self::RECEIVED)->where('payload.sendReceipt', true)))
             ->where('handled_by', '!=', self::CONSUMER)
             ->where('created_at', '>=', new UTCDateTime(now()->subHours(12)))
             ->where(fn (Builder $q) => $q->whereNull('confirmation_email_retry_at')
                 ->orWhere('confirmation_email_retry_at', '<=', new UTCDateTime(now())))
-            ->orderBy('created_at')->limit($limit)->get();
+            ->orderBy('created_at')->orderBy('_id')->limit($limit)->get();
 
         $sent = 0;
         foreach ($events as $event) {
@@ -44,13 +50,17 @@ final class ReservationConfirmation
             $reservation = Reservation::query()->find((string) $event['source_id']);
             $email = ((array) ($reservation?->customer_snapshot ?? []))['email'] ?? null;
             $branch = $reservation ? Branch::query()->find((string) $reservation->branch_id) : null;
-            if ($branch && $email && $reservation->source === 'WEB'
-                && $reservation->status === Reservation::CONFIRMED && $reservation->start_at->isFuture()) {
+            $received = $event['type'] === self::RECEIVED;
+            $status = $reservation?->status;
+            $eligible = $received
+                ? in_array($status, [Reservation::PENDING, Reservation::CONFIRMED], true)
+                : $status === Reservation::CONFIRMED;
+            if ($branch && $email && $eligible && $reservation->source === 'WEB' && $reservation->start_at->isFuture()) {
                 try {
-                    self::send($branch, $reservation, $email, (string) $event['id']);
+                    self::send($branch, $reservation, $email, (string) $event['id'], $received);
                     $sent++;
                 } catch (TransportExceptionInterface) {
-                    Log::warning('No se pudo enviar un correo de confirmación de reserva.', ['reservationId' => $reservation->uuid]);
+                    Log::warning('No se pudo enviar un correo de reserva.', ['reservationId' => $reservation->uuid, 'event' => $event['type']]);
                     $row->update(['confirmation_email_retry_at' => new UTCDateTime(now()->addMinutes(5))]);
 
                     continue;
@@ -62,18 +72,21 @@ final class ReservationConfirmation
         return $sent;
     }
 
-    private static function send(Branch $branch, Reservation $reservation, string $email, string $eventId): void
+    private static function send(Branch $branch, Reservation $reservation, string $email, string $eventId, bool $received): void
     {
         $details = Site::presentRequest($branch, $reservation);
+        $subject = $received ? 'Recibimos tu solicitud en La Mesa' : 'Tu reserva en La Mesa está confirmada';
+        $status = $received
+            ? "Recibimos tu solicitud para {$details['branchName']}. Puedes consultar su estado con el folio. Te avisaremos cuando la sucursal confirme."
+            : "Tu reserva en {$details['branchName']} está confirmada. Te esperamos en La Mesa.";
         $body = "Hola, {$details['name']}.\n\n"
-            ."Tu reserva en {$details['branchName']} está confirmada.\n"
+            .$status."\n\n"
             ."Fecha {$details['date']} a las {$details['time']}\n"
             ."Personas {$details['partySize']}\n"
-            ."Folio {$details['folio']}\n\n"
-            ."Guarda tu folio para consultar tu reserva en nuestro sitio.\n\nTe esperamos en La Mesa.";
+            ."Folio {$details['folio']}\n";
 
-        Mail::raw($body, function (Message $message) use ($email, $eventId) {
-            $message->to($email)->subject('Tu reserva en La Mesa está confirmada');
+        Mail::raw($body, function (Message $message) use ($email, $eventId, $subject) {
+            $message->to($email)->subject($subject);
             $message->getSymfonyMessage()->getHeaders()->addTextHeader('Idempotency-Key', 'reservation-confirmation/'.$eventId);
         });
     }

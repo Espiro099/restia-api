@@ -171,7 +171,10 @@ final class Site
                 // Sin actor: el registro queda como SYSTEM, con el origen en los cambios.
                 Audit::record('reservation.created', 'reservation', $r->getKey(), $branchId,
                     changes: ['source' => 'WEB', 'startAt' => $start->toIso8601ZuluString(), 'partySize' => (int) $in['partySize']]);
-                Outbox::publish('reservation.created', 'reservation', $r->getKey(), $branchId, ['reservationId' => $r->uuid]);
+                Outbox::publish('reservation.created', 'reservation', $r->getKey(), $branchId, [
+                    'reservationId' => $r->uuid,
+                    'sendReceipt' => ! empty($in['email']),
+                ]);
 
                 return [201, self::presentRequest($branch, $r), $r->uuid];
             });

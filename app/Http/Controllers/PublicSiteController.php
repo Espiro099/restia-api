@@ -6,7 +6,7 @@ use App\Exceptions\DomainConflict;
 use App\PublicSite\Assistant;
 use App\PublicSite\AssistantUnavailable;
 use App\PublicSite\Phone;
-use App\PublicSite\ReservationConfirmation;
+use App\PublicSite\ReservationEmails;
 use App\PublicSite\Site;
 use App\Support\Api;
 use App\Support\Idempotency;
@@ -28,7 +28,7 @@ class PublicSiteController extends Controller
 
         return Api::data(Site::branches(), meta: [
             'assistant' => $assistant->available(),
-            'reservationEmail' => ReservationConfirmation::available(),
+            'reservationEmail' => ReservationEmails::available(),
         ]);
     }
 
@@ -58,10 +58,13 @@ class PublicSiteController extends Controller
             'email' => ['sometimes', 'nullable', 'string', 'email:rfc', 'max:254'],
         ]);
         $in['phone'] = Phone::e164($in['phone']) ?? throw ValidationException::withMessages(['phone' => 'Escribe un teléfono de 10 dígitos.']);
-        if (! empty($in['email']) && ! ReservationConfirmation::available()) {
-            throw ValidationException::withMessages(['email' => 'El correo de confirmación no está disponible. Borra el correo y vuelve a enviar la solicitud.']);
+        if (! empty($in['email']) && ! ReservationEmails::available()) {
+            throw ValidationException::withMessages(['email' => 'El correo para reservas no está disponible. Recarga la página y vuelve a intentarlo.']);
         }
         $this->limit($request, 'requests');
+        if (! empty($in['email'])) {
+            Throttle::hit('site-reservation-email|'.mb_strtolower($in['email']), 3, windowSeconds: 3600);
+        }
         $branch = Site::branch($in['branchCode']);
         unset($in['branchCode']);
         [$status, $data] = Site::request($branch, $key, $in);
