@@ -43,6 +43,7 @@ Route::controller(PublicQrController::class)->prefix('public')->middleware('qr')
     Route::get('context', 'context');
     Route::get('menu', 'menu');
     Route::post('presence', 'presence');
+    Route::post('assistant', 'assistant');
 });
 
 // Fotos del menú (M-12): públicas, como el menú QR que las muestra.

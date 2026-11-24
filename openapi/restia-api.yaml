@@ -11675,6 +11675,58 @@ paths:
           $ref: '#/components/responses/NotFound'
         '500':
           $ref: '#/components/responses/InternalError'
+  /public/assistant:
+    post:
+      tags:
+      - Public QR
+      operationId: askPublicAssistant
+      summary: Pregunta al asistente del menú
+      description: Responde dudas sobre la carta y la sucursal con la API de Claude (QR-14). No toma pedidos ni ve la sesión, la cuenta o datos de otras personas, y no guarda la conversación. Sin llave configurada responde SERVICE_BUSY.
+      security:
+      - PublicQrToken: []
+      x-restia:
+        actors:
+        - Visitante con token QR
+        branch: Implícita en el token QR
+        permission: Token QR válido
+        requiredState: Sucursal activa; mesa distinta de INACTIVE
+        idempotent: No; cada pregunta genera una respuesta nueva
+        requiresVersion: false
+        concurrency: No aplica
+        audit: false
+        outbox: false
+        mode: Síncrono
+        sensitive: Ninguno; la conversación no se guarda
+        clients:
+        - QR público
+      parameters:
+      - $ref: '#/components/parameters/RequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PublicAssistantRequest'
+      responses:
+        '200':
+          description: Respuesta del asistente
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/XRequestId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicAssistantResponse'
+        '401':
+          $ref: '#/components/responses/QrTokenInvalid'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        '429':
+          $ref: '#/components/responses/TooManyAttempts'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceBusy'
   /public/presence:
     post:
       tags:
@@ -20439,6 +20491,7 @@ components:
       - tableNumber
       - currency
       - timezone
+      - assistant
       properties:
         restaurantName:
           type: string
@@ -20464,6 +20517,52 @@ components:
           format: uri
           nullable: true
           description: Enlace de Google Maps que busca la dirección; no requiere llave (QR-13).
+        assistant:
+          type: boolean
+          description: Si el asistente del menú está disponible (QR-14); sin llave de la API de Claude es false.
+    PublicAssistantMessage:
+      type: object
+      additionalProperties: false
+      required:
+      - role
+      - content
+      properties:
+        role:
+          type: string
+          enum:
+          - user
+          - assistant
+        content:
+          type: string
+          minLength: 1
+          maxLength: 500
+    PublicAssistantRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - messages
+      properties:
+        messages:
+          type: array
+          minItems: 1
+          maxItems: 12
+          description: La conversación completa, alternando cliente y asistente; empieza y termina con el cliente. La API no la guarda.
+          items:
+            $ref: '#/components/schemas/PublicAssistantMessage'
+    PublicAssistantReply:
+      type: object
+      required:
+      - reply
+      properties:
+        reply:
+          type: string
+    PublicAssistantResponse:
+      type: object
+      required:
+      - data
+      properties:
+        data:
+          $ref: '#/components/schemas/PublicAssistantReply'
     PublicAddress:
       type: object
       required:
