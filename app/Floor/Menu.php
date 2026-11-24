@@ -48,6 +48,7 @@ final class Menu
                 'description' => $p->description,
                 'category' => $p->category,
                 'displayOrder' => (int) $p->display_order,
+                'recommended' => (bool) $p->recommended,
                 'price' => Floor::money($p->price),
                 'availability' => $p->availability,
                 'modifierIds' => $ids,

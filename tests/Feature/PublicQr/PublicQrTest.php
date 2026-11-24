@@ -44,8 +44,10 @@ class PublicQrTest extends FloorTestCase
         $products = $menu->json('data.products');
         $this->assertNotEmpty($products);
         foreach ($products as $p) {
-            $this->assertSame(['id', 'name', 'category', 'displayOrder', 'price', 'availability', 'modifierIds', 'imageUrl'], array_keys($p));
+            $this->assertSame(['id', 'name', 'description', 'category', 'displayOrder', 'recommended', 'price', 'availability', 'modifierIds', 'imageUrl'], array_keys($p));
         }
+        // QR-13: la recomendación del día llega marcada.
+        $this->assertNotContains(true, array_column($products, 'recommended'));
         // Los agotados se ven, marcados (QR-7).
         $this->assertContains('SOLD_OUT', array_column($products, 'availability'));
         $this->assertArrayNotHasKey('branchId', $menu->json('data'));

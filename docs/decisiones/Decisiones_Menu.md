@@ -22,6 +22,7 @@ Se conserva D-13: recetas versionadas e históricamente inmutables, y rutas en `
 | **M-10** | Categorías | Campo de texto `category` y `displayOrder` | Colección `categories` |
 | **M-11** | Permisos | Matriz de la sección 4 | Ajustar por rol |
 | **M-12** | Foto del producto | Se sube a la API (`PUT .../products/{productId}/image`, multipart). La API la reduce a 1200 px por lado, la vuelve a codificar como JPEG sin metadatos y la guarda en MongoDB (`product_images`); se sirve sin sesión en `GET /public/images/{imageId}` con caché permanente. Se quita con `PATCH` e `imageUrl: null` | URL `https://` externa: dependía de otros sitios y obligaba a abrir la CSP del panel |
+| **M-13** | Recomendación del día | Campo `recommended` (booleano) del producto; el gerente lo marca en el panel y el menú del QR lo destaca. Puede haber varios; cambiarlo sube `menu_version` | Un producto único por sucursal o calcularla por ventas |
 
 ## 2. M-2: contradicción resuelta con la opción A
 

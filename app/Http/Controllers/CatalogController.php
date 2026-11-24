@@ -267,6 +267,8 @@ class CatalogController extends Controller
             'description' => ['sometimes', 'nullable', 'string', 'max:1000'],
             'category' => [$req, 'string', 'min:1', 'max:60'],
             'displayOrder' => ['sometimes', 'integer', 'min:0', 'max:100000'],
+            // M-13: recomendación del día en el menú del QR.
+            'recommended' => ['sometimes', 'boolean:strict'],
             'modifierIds' => ['sometimes', 'array', 'list', 'max:50'],
             'modifierIds.*' => ['string', 'uuid', 'distinct:ignore_case'],
             'fiscal' => [$req, 'array:satProductCode,satUnitCode,taxObject,taxRate'],

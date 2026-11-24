@@ -24,6 +24,7 @@ El documento no dice qué hace el cliente en esa página. Esa es la decisión de
 | **QR-10** | Autofacturación (pendiente de Fiscal) | Fuera de v1; las facturas las genera el personal | Portal público de facturación |
 | **QR-11** | Despliegue | Dominio distinto al del panel, sin cookies, `Referrer-Policy: no-referrer`, `noindex` y sin scripts de terceros | Mismo dominio del panel |
 | **QR-12** | Permisos del personal | `ADMIN` y `MANAGER` consultan y rotan, solo en Web | Solo `ADMIN` |
+| **QR-13** | Menú del cliente (fase 4) | El menú público agrega la descripción del platillo (texto para el cliente que escribe el gerente) y `recommended` (M-13) para la recomendación del día. Sigue sin códigos, recetas, costos ni datos fiscales | Mantener el menú sin descripciones |
 
 ## 2. Por qué tan limitado (QR-1, QR-2)
 
